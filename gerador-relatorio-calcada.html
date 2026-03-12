@@ -583,13 +583,19 @@
         if (isProcessing || isPrinting) return;
         setIsPrinting(true);
         const originalTitle = document.title;
+        const wasDark = document.body.classList.contains("dark");
+        if (wasDark) document.body.classList.remove("dark");
         document.title = `Relatório_Calçadas_${reportData.numeroRelatório.replace(/\//g, "-")}_${reportData.local.replace(/[^a-zA-Z0-9]/g, "_")}`;
         try {
           await waitForImagesReady(reportRef.current);
           await new Promise((r) => setTimeout(r, 200));
           window.print();
         } finally {
-          setTimeout(() => { document.title = originalTitle; setIsPrinting(false); }, 500);
+          setTimeout(() => { 
+            document.title = originalTitle;
+            if (wasDark) document.body.classList.add("dark");
+            setIsPrinting(false);
+          }, 500);
         }
       };
 
@@ -668,6 +674,8 @@
       const handleSendWhatsApp = async () => {
         if (isProcessing || isPrinting || isSharing) return;
         setIsSharing(true);
+        const wasDark = document.body.classList.contains("dark");
+        if (wasDark) document.body.classList.remove("dark");
         try {
           const blob = await generatePdfBlob();
           const filename = `Relatório_Calçada_${reportData.numeroRelatório || "sem-numero"}.pdf`;
@@ -694,6 +702,7 @@
           const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportData.numeroRelatório}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
           window.open(`https://wa.me/?text=${msg}`);
         } finally {
+          if (wasDark) document.body.classList.add("dark");
           setIsSharing(false);
         }
       };

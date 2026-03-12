@@ -485,6 +485,8 @@
 
         setIsPrinting(true);
         const originalTitle = document.title;
+        const wasDark = document.body.classList.contains("dark");
+        if (wasDark) document.body.classList.remove("dark");
 
         const dateParts = reportData.data.split("-");
         const dateFormatted = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : "Relatório";
@@ -507,6 +509,7 @@
         } finally {
           setTimeout(() => {
             document.title = originalTitle;
+            if (wasDark) document.body.classList.add("dark");
             setIsPrinting(false);
           }, 500);
         }
