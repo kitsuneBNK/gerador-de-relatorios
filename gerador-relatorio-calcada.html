@@ -10,6 +10,8 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link id="app-css" rel="stylesheet" href="./styles.css" />
   <script>
     (function () {
@@ -29,6 +31,7 @@
 
 <body class="bg-slate-100">
   <button id="theme-toggle" class="theme-toggle no-print-area" type="button">Modo escuro</button>
+  <a href="./index.html" class="back-to-index no-print-area" aria-label="Voltar ao hub">← Voltar ao hub</a>
   <div id="root"></div>
   <script>
     (function () {
@@ -250,6 +253,7 @@
 
       const [isProcessing, setIsProcessing] = useState(false);
       const [isPrinting, setIsPrinting] = useState(false);
+      const [isSharing, setIsSharing] = useState(false);
 
       const canvasRef = useRef(null);
       const magnifierCanvasRef = useRef(null);
@@ -615,7 +619,6 @@
           local,
           data: reportData.dataIso || "",
           coordenadas: coords,
-          createdAt: new Date().toISOString(),
         };
         saveMyMapsHistory(historyEntry);
 
@@ -631,9 +634,68 @@
         document.body.removeChild(textArea);
       };
 
-      const handleSendWhatsApp = () => {
-        const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportData.numeroRelatório}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
-        window.open(`https://wa.me/?text=${msg}`);
+      const generatePdfBlob = async () => {
+        if (!window.html2canvas || !window.jspdf) {
+          throw new Error("Bibliotecas de PDF não carregadas.");
+        }
+        const el = reportRef.current;
+        if (!el) throw new Error("Relatório não encontrado.");
+        await waitForImagesReady(el);
+        const canvas = await window.html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        });
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const pdf = new window.jspdf.jsPDF("p", "mm", "a4");
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+        return pdf.output("blob");
+      };
+
+      const handleSendWhatsApp = async () => {
+        if (isProcessing || isPrinting || isSharing) return;
+        setIsSharing(true);
+        try {
+          const blob = await generatePdfBlob();
+          const filename = `Relatório_Calçada_${reportData.numeroRelatório || "sem-numero"}.pdf`;
+          const file = new File([blob], filename, { type: "application/pdf" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: "Relatório de Calçada",
+              text: "Envio do relatório em PDF.",
+            });
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            const msg = encodeURIComponent("PDF gerado. Anexe o arquivo no WhatsApp.");
+            window.open(`https://wa.me/?text=${msg}`);
+          }
+        } catch (err) {
+          const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportData.numeroRelatório}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
+          window.open(`https://wa.me/?text=${msg}`);
+        } finally {
+          setIsSharing(false);
+        }
       };
 
       const updatePhotoLegenda = (id, legenda) =>
@@ -987,7 +1049,7 @@
 
               <div className="grid grid-cols-2 gap-3 pt-6 border-t">
                 <button onClick={handlePrint} className="flex-1 py-4 bg-[#004587] text-white rounded-2xl text-[11px] font-black uppercase shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><Printer size={18}/> Gerar PDF</button>
-                <button onClick={handleSendWhatsApp} className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl text-[11px] font-black uppercase shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><MessageCircle size={18}/> WhatsApp</button>
+                <button onClick={handleSendWhatsApp} disabled={isSharing || isProcessing || isPrinting} className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl text-[11px] font-black uppercase shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-60"><MessageCircle size={18}/> {isSharing ? "Gerando PDF..." : "WhatsApp"}</button>
               </div>
               <button
                 type="button"
