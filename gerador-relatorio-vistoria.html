@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -193,8 +193,13 @@
     }
 
     const App = () => {
-      const imgBrasaoURL = "./B_DF_Brasil.png";
-      const imgBrasaoURLFallback = "/gerador-de-relatorios/B_DF_Brasil.png";
+      const repoBase = (() => {
+        const isGh = typeof location !== "undefined" && location.hostname.endsWith("github.io");
+        const repo = isGh ? location.pathname.split("/").filter(Boolean)[0] : "";
+        return repo ? `/${repo}` : "";
+      })();
+      const imgBrasãoURL = "./B_DF_Brasil.png";
+      const imgBrasãoURLFallback = repoBase ? `${repoBase}/B_DF_Brasil.png` : imgBrasãoURL;
       const MYMAPS_HISTORY_KEY = "mymaps_history_v1";
       const categoriasMyMaps = [
         "Buraco em Via",
@@ -241,10 +246,10 @@
           admRegional: "ADMINISTRAÇÃO REGIONAL DO PLANO PILOTO",
           setor: savedData.setor || "",
           vistoriador: savedData.vistoriador || "",
-          vistoriadorMatricula: savedData.vistoriadorMatricula || "",
+          vistoriadorMatrícula: savedData.vistoriadorMatrícula || "",
           elaboradorNome: savedData.elaboradorNome || "",
           elaboradorCargo: savedData.elaboradorCargo || "",
-          elaboradorMatricula: savedData.elaboradorMatricula || "",
+          elaboradorMatrícula: savedData.elaboradorMatrícula || "",
           assunto: "",
           numeroProcesso: "",
           data: new Date().toISOString().split("T")[0],
@@ -305,10 +310,10 @@
         const dataToSave = {
           setor: reportData.setor,
           vistoriador: reportData.vistoriador,
-          vistoriadorMatricula: reportData.vistoriadorMatricula,
+          vistoriadorMatrícula: reportData.vistoriadorMatrícula,
           elaboradorNome: reportData.elaboradorNome,
           elaboradorCargo: reportData.elaboradorCargo,
-          elaboradorMatricula: reportData.elaboradorMatricula,
+          elaboradorMatrícula: reportData.elaboradorMatrícula,
         };
         if (Object.values(dataToSave).some((val) => val !== "")) {
           localStorage.setItem("dirob_user_prefs_v2", JSON.stringify(dataToSave));
@@ -319,10 +324,10 @@
       }, [
         reportData.setor,
         reportData.vistoriador,
-        reportData.vistoriadorMatricula,
+        reportData.vistoriadorMatrícula,
         reportData.elaboradorNome,
         reportData.elaboradorCargo,
-        reportData.elaboradorMatricula,
+        reportData.elaboradorMatrícula,
       ]);
 
       useEffect(() => {
@@ -481,7 +486,7 @@
         const originalTitle = document.title;
 
         const dateParts = reportData.data.split("-");
-        const dateFormatted = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : "Relatorio";
+        const dateFormatted = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : "Relatório";
 
         const safeAssunto = (reportData.assunto || "Vistoria")
           .substring(0, 50)
@@ -489,7 +494,7 @@
           .trim()
           .replace(/\s+/g, "_");
 
-        document.title = `Relatorio_DIROB_${dateFormatted}_${safeAssunto}`;
+        document.title = `Relatório_DIROB_${dateFormatted}_${safeAssunto}`;
 
         try {
           // 1) garante que imagens do relatório estão carregadas/decodificadas
@@ -550,7 +555,7 @@
           {/* PAINEL */}
           <div className="w-full md:w-[450px] bg-white rounded-xl shadow-lg p-6 md:overflow-y-auto md:max-h-[95vh] md:sticky md:top-4 border-t-4 border-[#004587] no-print-area">
             <div className="flex items-center gap-3 mb-6 border-b pb-4">
-              <img src={imgBrasaoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasaoURLFallback) e.currentTarget.src = imgBrasaoURLFallback; }} alt="Brasão" className="h-12 w-auto object-contain" />
+              <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão" className="h-12 w-auto object-contain" />
               <div className="flex-1">
                 <h1 className="text-[10px] font-bold text-[#004587] uppercase tracking-tight">Sistema de Gestão</h1>
                 <h1 className="text-sm font-black text-[#004587] uppercase tracking-tighter">Relatórios DIROB v3.9</h1>
@@ -602,10 +607,10 @@
                       />
                       <input
                         type="text"
-                        name="vistoriadorMatricula"
+                        name="vistoriadorMatrícula"
                         placeholder="Matrícula Vistoriador"
                         className="w-full p-2 border rounded text-[11px]"
-                        value={reportData.vistoriadorMatricula}
+                        value={reportData.vistoriadorMatrícula}
                         onChange={handleInputChange}
                       />
                     </div>
@@ -672,10 +677,10 @@
                       />
                       <input
                         type="text"
-                        name="elaboradorMatricula"
+                        name="elaboradorMatrícula"
                         placeholder="Matrícula"
                         className="w-full p-2 border rounded text-[11px]"
-                        value={reportData.elaboradorMatricula}
+                        value={reportData.elaboradorMatrícula}
                         onChange={handleInputChange}
                       />
                     </div>
@@ -952,7 +957,7 @@
               <div className="page-cover mx-auto bg-white shadow-sm print:shadow-none border-b print:border-none p-4 md:p-8">
                 <div className="flex items-center justify-between mb-4 w-full h-[100px] px-4">
                   <div className="w-[80px] flex justify-start items-center">
-                    <img src={imgBrasaoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasaoURLFallback) e.currentTarget.src = imgBrasaoURLFallback; }} alt="Brasão DF" className="h-16 object-contain" decoding="async" />
+                    <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão DF" className="h-16 object-contain" decoding="async" />
                   </div>
                   <div className="flex-1 flex flex-col items-center text-center px-4">
                     <h1 className="text-base font-bold text-[#004587] tracking-[0.2em] uppercase leading-tight">Governo do Distrito Federal</h1>
@@ -984,10 +989,10 @@
                         <span className="font-bold text-slate-900 leading-tight">{reportData.vistoriador}</span>
                       </div>
                     )}
-                    {reportData.vistoriadorMatricula.trim() && (
+                    {reportData.vistoriadorMatrícula.trim() && (
                       <div>
                         <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Matrícula Vistoriador</span>
-                        <span className="font-bold text-slate-900 leading-tight">{reportData.vistoriadorMatricula}</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.vistoriadorMatrícula}</span>
                       </div>
                     )}
                     {reportData.numeroProcesso.trim() && (
@@ -1091,8 +1096,8 @@
                   {reportData.elaboradorCargo.trim() && (
                     <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">{reportData.elaboradorCargo}</p>
                   )}
-                  {reportData.elaboradorMatricula.trim() && (
-                    <p className="text-[9px] text-slate-500">Matrícula {reportData.elaboradorMatricula}</p>
+                  {reportData.elaboradorMatrícula.trim() && (
+                    <p className="text-[9px] text-slate-500">Matrícula {reportData.elaboradorMatrícula}</p>
                   )}
                 </div>
               </div>
@@ -1108,3 +1113,4 @@
   </script>
 </body>
 </html>
+

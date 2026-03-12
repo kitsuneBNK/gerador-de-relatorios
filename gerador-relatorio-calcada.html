@@ -140,8 +140,13 @@
     }
 
     const App = () => {
-      const imgBrasaoURL = "./B_DF_Brasil.png";
-      const imgBrasaoURLFallback = "/gerador-de-relatorios/B_DF_Brasil.png";
+      const repoBase = (() => {
+        const isGh = typeof location !== "undefined" && location.hostname.endsWith("github.io");
+        const repo = isGh ? location.pathname.split("/").filter(Boolean)[0] : "";
+        return repo ? `/${repo}` : "";
+      })();
+      const imgBrasãoURL = "./B_DF_Brasil.png";
+      const imgBrasãoURLFallback = repoBase ? `${repoBase}/B_DF_Brasil.png` : imgBrasãoURL;
       const MYMAPS_HISTORY_KEY = "mymaps_history_v1";
       const [autoSaved, setAutoSaved] = useState(false);
       const [copied, setCopied] = useState(false);
@@ -154,17 +159,17 @@
         const d = loadSaved("calcadas_prefs_v7", {});
         return {
           orgao: "GOVERNO DO DISTRITO FEDERAL",
-          admRegional: "ADMINISTRACAO REGIONAL DO PLANO PILOTO",
-          setor: d.setor || "COLIC - COORDENACAO DE LICENCIAMENTO, OBRAS E MANUTENCAO",
-          tituloPrincipal: "LEVANTAMENTO DE CALCADAS DANIFICADAS",
-          numeroRelatorio: d.numeroRelatorio || "27/2026",
+          admRegional: "ADMINISTRAÇÃO REGIONAL DO PLANO PILOTO",
+          setor: d.setor || "COLIC - COORDENAÇÃO DE LICENCIAMENTO, OBRAS E MANUTENÇÃO",
+          tituloPrincipal: "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
+          numeroRelatório: d.numeroRelatório || "27/2026",
           local: d.local || "EQS 102/103",
-          descricaoRelatorio: d.descricaoRelatorio || "",
+          descricaoRelatório: d.descricaoRelatório || "",
           descricaoImagens: d.descricaoImagens || "",
           vistoriador: d.vistoriador || "LUIZ PEDRO SORANCO MIRANDA", dataIso: d.dataIso || new Date().toISOString().split("T")[0], 
           vistoriadorCargo: d.vistoriadorCargo || "",
-          vistoriadorMatricula: d.vistoriadorMatricula || "",
-          tipoIntervencao: d.tipoIntervencao || "CALCADAS RECUPERACAO/RECONSTRUCAO",
+          vistoriadorMatrícula: d.vistoriadorMatrícula || "",
+          tipoIntervencao: d.tipoIntervencao || "CALÇADAS RECUPERAÇÃO/RECONSTRUÇÃO",
           valorMetroQuadrado: d.valorMetroQuadrado || "253,00",
         };
       });
@@ -574,7 +579,7 @@
         if (isProcessing || isPrinting) return;
         setIsPrinting(true);
         const originalTitle = document.title;
-        document.title = `Relatorio_Calcadas_${reportData.numeroRelatorio.replace(/\//g, "-")}_${reportData.local.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        document.title = `Relatório_Calçadas_${reportData.numeroRelatório.replace(/\//g, "-")}_${reportData.local.replace(/[^a-zA-Z0-9]/g, "_")}`;
         try {
           await waitForImagesReady(reportRef.current);
           await new Promise((r) => setTimeout(r, 200));
@@ -594,9 +599,9 @@
       };
 
       const handleCopyToMyMaps = () => {
-        const assunto = `Relatorio Calcada ${reportData.numeroRelatorio || ""}`.trim();
-        const categoria = "Calcada";
-        const processo = reportData.numeroRelatorio || "";
+        const assunto = `Relatório Calçada ${reportData.numeroRelatório || ""}`.trim();
+        const categoria = "Calçada";
+        const processo = reportData.numeroRelatório || "";
         const local = reportData.local || "";
         const data = formatDateIso(reportData.dataIso || "");
         const coords = "";
@@ -627,7 +632,7 @@
       };
 
       const handleSendWhatsApp = () => {
-        const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatorio: ${reportData.numeroRelatorio}\nLocal: ${reportData.local}\nArea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
+        const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportData.numeroRelatório}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
         window.open(`https://wa.me/?text=${msg}`);
       };
 
@@ -727,7 +732,7 @@
             onClick={() => setShowSettings(true)}
             className="w-full py-2 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50"
           >
-            Configuracoes
+            Configurações
           </button>
           
           <div className={`relative border-2 border-indigo-400 rounded-2xl overflow-hidden bg-slate-900 flex items-center justify-center canvas-container ${isFullscreen ? 'flex-1 h-full' : 'h-[250px] sm:h-[350px]'}`}>
@@ -763,7 +768,7 @@
             <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 no-print-area">
               <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-4 shadow-xl">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-black uppercase text-[#004587]">Configuracoes</div>
+                  <div className="text-[11px] font-black uppercase text-[#004587]">Configurações</div>
                   <button
                     type="button"
                     onClick={() => setShowSettings(false)}
@@ -845,10 +850,10 @@
           {/* PAINEL LATERAL */}
           <div className="w-full md:w-[450px] shrink-0 bg-white rounded-2xl shadow-xl p-5 md:overflow-y-auto md:max-h-[95vh] border-t-8 border-[#004587] no-print-area custom-scrollbar">
             <div className="flex items-center gap-4 mb-8 border-b pb-4">
-              <img src={imgBrasaoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasaoURLFallback) e.currentTarget.src = imgBrasaoURLFallback; }} alt="Brasao" className="h-12" />
+              <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão" className="h-12" />
               <div className="flex-1">
-                <h1 className="text-[10px] font-black text-[#004587] uppercase opacity-70">Administracao Regional</h1>
-                <h1 className="text-lg font-black text-[#004587] uppercase tracking-tighter leading-none">Vistoria de Calcadas</h1>
+                <h1 className="text-[10px] font-black text-[#004587] uppercase opacity-70">Administração Regional</h1>
+                <h1 className="text-lg font-black text-[#004587] uppercase tracking-tighter leading-none">Vistoria de Calçadas</h1>
               </div>
               {autoSaved && <div className="text-[10px] text-emerald-500 font-bold">Salvo</div>}
             </div>
@@ -857,21 +862,21 @@
               <section className="space-y-3">
                 <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FileText size={14}/> 1. Identificacao</h2>
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="text" placeholder="No Relatorio" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.numeroRelatorio} onChange={e => setReportData({...reportData, numeroRelatorio: e.target.value})} />
+                  <input type="text" placeholder="Nº do Relatório" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.numeroRelatório} onChange={e => setReportData({...reportData, numeroRelatório: e.target.value})} />
                   <input type="text" placeholder="Local" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.local} onChange={e => setReportData({...reportData, local: e.target.value})} />
                 </div>
-                <input type="text" placeholder="Responsavel" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriador} onChange={e => setReportData({...reportData, vistoriador: e.target.value})} />
+                <input type="text" placeholder="Responsável" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriador} onChange={e => setReportData({...reportData, vistoriador: e.target.value})} />
                 <div className="grid grid-cols-2 gap-2">
                   <input type="text" placeholder="Cargo/Funcao" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriadorCargo} onChange={e => setReportData({...reportData, vistoriadorCargo: e.target.value})} />
-                  <input type="text" placeholder="Matricula" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriadorMatricula} onChange={e => setReportData({...reportData, vistoriadorMatricula: e.target.value})} />
+                  <input type="text" placeholder="Matrícula" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriadorMatrícula} onChange={e => setReportData({...reportData, vistoriadorMatrícula: e.target.value})} />
                 </div>
                 <input type="date" className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs font-bold text-blue-700" value={reportData.dataIso} onChange={e => setReportData({...reportData, dataIso: e.target.value})} />
                 <textarea
                   rows="2"
-                  placeholder="Descricao do relatorio"
+                  placeholder="Descrição do relatório"
                   className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
-                  value={reportData.descricaoRelatorio}
-                  onChange={e => setReportData({...reportData, descricaoRelatorio: e.target.value})}
+                  value={reportData.descricaoRelatório}
+                  onChange={e => setReportData({...reportData, descricaoRelatório: e.target.value})}
                 />
               </section>
 
@@ -888,7 +893,7 @@
                   <button onClick={() => setDimensions([...dimensions, {id: generateId(), text: "", color: COLORS[dimensions.length%COLORS.length]}])} className="w-full py-3 border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-slate-50 transition-colors">+ Adicionar Nova Medida</button>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-col"><span className="text-[8px] font-bold text-slate-400 uppercase">Area Total</span><span className="text-sm font-black">{areaTotal.toFixed(2)} m2</span></div>
+                  <div className="bg-slate-900 text-white p-3 rounded-2xl flex flex-col"><span className="text-[8px] font-bold text-slate-400 uppercase">Área Total</span><span className="text-sm font-black">{areaTotal.toFixed(2)} m2</span></div>
                   <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-2xl flex flex-col"><span className="text-[8px] font-bold text-indigo-400 uppercase">Valor p/ m2</span><input type="text" className="bg-transparent text-sm font-black text-indigo-700 outline-none" value={reportData.valorMetroQuadrado} onChange={e => setReportData({...reportData, valorMetroQuadrado: e.target.value})} /></div>
                 </div>
               </section>
@@ -916,10 +921,10 @@
               </section>
 
               <section className="space-y-3">
-                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><ImageIcon size={14}/> 4. Evidencias</h2>
+                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><ImageIcon size={14}/> 4. Evidências</h2>
                 <textarea
                   rows="2"
-                  placeholder="Descricao das imagens"
+                  placeholder="Descrição das imagens"
                   className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
                   value={reportData.descricaoImagens}
                   onChange={e => setReportData({...reportData, descricaoImagens: e.target.value})}
@@ -941,7 +946,7 @@
 
                 <label className="flex items-center justify-center w-full h-14 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 cursor-pointer hover:bg-slate-100 transition-all">
                   <Plus size={18} className="text-slate-500 mr-2"/>
-                  <span className="text-[10px] font-black text-slate-600 uppercase">Adicionar Evidencias</span>
+                  <span className="text-[10px] font-black text-slate-600 uppercase">Adicionar Evidências</span>
                   <input
                     type="file"
                     className="hidden"
@@ -998,11 +1003,11 @@
 
           {/* PREVIEW PDF */}
           <div className="flex-1 bg-white shadow-2xl rounded-3xl border overflow-hidden hidden md:flex flex-col print:shadow-none print:border-none print:rounded-none print-flow print-overflow-visible report-light">
-             <div className="bg-slate-800 p-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest print:hidden">Pre-visualizacao do Documento</div>
+             <div className="bg-slate-800 p-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest print:hidden">Pré-visualização do Documento</div>
              <div className="flex-1 overflow-y-auto p-4 flex justify-center bg-slate-200 print:p-0 print:bg-white print-flow print-overflow-visible report-light">
                 <div ref={reportRef} className="bg-white w-[700px] min-h-[990px] shadow-2xl p-10 flex flex-col print-area print-area--flow print:shadow-none print:min-h-0 print:block print:h-auto report-root report-light">
                    <div className="flex items-center justify-between mb-8 border-b pb-4">
-                      <img src={imgBrasaoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasaoURLFallback) e.currentTarget.src = imgBrasaoURLFallback; }} className="h-16" alt="Brasao" />
+                      <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} className="h-16" alt="Brasão" />
                       <div className="text-center">
                         <h1 className="text-sm font-bold text-[#004587] uppercase leading-tight">{reportData.orgao}</h1>
                         <h2 className="text-[10px] font-bold text-slate-500 uppercase">{reportData.admRegional}</h2>
@@ -1012,19 +1017,19 @@
                    </div>
 
                    <div className="bg-[#004587] text-white py-2 text-center rounded-lg shadow-md mb-8">
-                      <h2 className="text-xs font-black uppercase tracking-widest">RELATORIO DE VISTORIA N {reportData.numeroRelatorio} - {reportData.local}</h2>
+                      <h2 className="text-xs font-black uppercase tracking-widest">RELATÓRIO DE VISTORIA Nº {reportData.numeroRelatório} - {reportData.local}</h2>
                    </div>
 
                   <div className="flex-1 print:block report-body">
                       <div className="grid grid-cols-2 gap-8">
                         <div className="space-y-4">
                           <div className="border-l-4 border-[#004587] pl-4 py-1">
-                             <span className="text-[8px] font-bold text-slate-400 uppercase">Localizacao</span>
+                             <span className="text-[8px] font-bold text-slate-400 uppercase">Localização</span>
                              <p className="text-xs font-black text-slate-800">{reportData.local}</p>
                              <p className="text-[9px] font-bold text-slate-600 mt-1">Data de criacao: {formatDateSimple(reportCreatedAt)}</p>
                           </div>
                           <div className="border-l-4 border-slate-200 pl-4 py-1">
-                             <span className="text-[8px] font-bold text-slate-400 uppercase">Responsavel</span>
+                             <span className="text-[8px] font-bold text-slate-400 uppercase">Responsável</span>
                              <p className="text-xs font-bold text-slate-600">{reportData.vistoriador}</p>
                           </div>
                         </div>
@@ -1044,16 +1049,16 @@
                         </div>
                       </div>
 
-                      {reportData.descricaoRelatorio && (
+                      {reportData.descricaoRelatório && (
                         <div className="mt-6 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                          <div className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Descricao do Relatorio</div>
-                          <div className="text-[10px] font-medium text-slate-700 whitespace-pre-wrap">{reportData.descricaoRelatorio}</div>
+                          <div className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Descrição do Relatório</div>
+                          <div className="text-[10px] font-medium text-slate-700 whitespace-pre-wrap">{reportData.descricaoRelatório}</div>
                         </div>
                       )}
 
                       <div className="mt-6 grid grid-cols-2 gap-4">
                          <div className="bg-yellow-50 p-4 rounded-3xl border-2 border-yellow-100 flex justify-between items-center">
-                           <span className="text-[9px] font-black text-yellow-800 uppercase">Area Total</span>
+                           <span className="text-[9px] font-black text-yellow-800 uppercase">Área Total</span>
                             <span className="text-lg font-black text-yellow-900">{areaTotal.toFixed(2)} m2</span>
                          </div>
                          <div className="bg-emerald-50 p-4 rounded-3xl border-2 border-emerald-100 flex justify-between items-center">
@@ -1067,7 +1072,7 @@
                           className="bg-slate-50 p-4 rounded-2xl border flex flex-col gap-2"
                           style={{ width: `${plantaPdfWidth}cm`, maxWidth: "100%" }}
                         >
-                           <span className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Demarcacao em Planta</span>
+                           <span className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Demarcação em Planta</span>
                            {drawnImage ? (
                              <img
                                src={drawnImage}
@@ -1082,7 +1087,7 @@
                       </div>
                       {photos.length > 0 && (
                         <div className="mt-6 references-section print-break-before">
-                          <div className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-3">Referencias</div>
+                          <div className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-3">Referências</div>
                           {reportData.descricaoImagens && (
                             <div className="text-[10px] font-medium text-slate-700 mb-3 whitespace-pre-wrap">
                               {reportData.descricaoImagens}
@@ -1106,10 +1111,10 @@
                       {reportData.vistoriadorCargo && (
                         <p className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">{reportData.vistoriadorCargo}</p>
                       )}
-                      {reportData.vistoriadorMatricula && (
-                        <p className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Matricula: {reportData.vistoriadorMatricula}</p>
+                      {reportData.vistoriadorMatrícula && (
+                        <p className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Matrícula: {reportData.vistoriadorMatrícula}</p>
                       )}
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Vistoria e Levantamento Tecnico</p>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Vistoria e Levantamento Técnico</p>
                    </div>
                 </div>
              </div>
@@ -1124,6 +1129,7 @@
   </script>
 </body>
 </html>
+
 
 
 
