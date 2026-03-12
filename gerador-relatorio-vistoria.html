@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Relatórios DIROB (Corrigido)</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body class="bg-slate-100">
+  <button id="theme-toggle" class="theme-toggle no-print-area" type="button">Modo escuro</button>
+  <div id="root"></div>
+  <script>
+    (function () {
+      const KEY = "gdf_theme_v1";
+      const root = document.body;
+      const btn = document.getElementById("theme-toggle");
+      const apply = (theme) => {
+        const isDark = theme === "dark";
+        root.classList.toggle("dark", isDark);
+        btn.textContent = isDark ? "Modo claro" : "Modo escuro";
+      };
+      const saved = localStorage.getItem(KEY);
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      apply(saved || (prefersDark ? "dark" : "light"));
+      btn.addEventListener("click", () => {
+        const next = root.classList.contains("dark") ? "light" : "dark";
+        localStorage.setItem(KEY, next);
+        apply(next);
+      });
+    })();
+  </script>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useMemo } = React;
+
+    // --- ADAPTADOR DE ÍCONES ---
+    const LucideIcon = ({ name, size = 24, className = "", ...props }) => {
+      const [svgHtml, setSvgHtml] = useState("");
+      useEffect(() => {
+        if (window.lucide && window.lucide.icons && window.lucide.icons[name]) {
+          const iconElement = window.lucide.createElement(window.lucide.icons[name]);
+          iconElement.setAttribute("width", size);
+          iconElement.setAttribute("height", size);
+          let finalClass = "lucide";
+          if (className) finalClass += ` ${className}`;
+          iconElement.setAttribute("class", finalClass);
+          setSvgHtml(iconElement.outerHTML);
+        }
+      }, [name, size, className]);
+      if (!svgHtml) return <span style={{ width: size, height: size, display: "inline-block" }}></span>;
+      return (
+        <span
+          dangerouslySetInnerHTML={{ __html: svgHtml }}
+          style={{ display: "inline-flex", alignItems: "center" }}
+          {...props}
+        />
+      );
+    };
+
+    const MapPin = (p) => <LucideIcon name="MapPin" {...p} />;
+    const ImageIcon = (p) => <LucideIcon name="Image" {...p} />;
+    const FileText = (p) => <LucideIcon name="FileText" {...p} />;
+    const Printer = (p) => <LucideIcon name="Printer" {...p} />;
+    const Trash2 = (p) => <LucideIcon name="Trash2" {...p} />;
+    const Plus = (p) => <LucideIcon name="Plus" {...p} />;
+    const Building2 = (p) => <LucideIcon name="Building2" {...p} />;
+    const ShieldCheck = (p) => <LucideIcon name="ShieldCheck" {...p} />;
+    const LayoutGrid = (p) => <LucideIcon name="LayoutGrid" {...p} />;
+    const MessageSquare = (p) => <LucideIcon name="MessageSquare" {...p} />;
+    const ClipboardCheck = (p) => <LucideIcon name="ClipboardCheck" {...p} />;
+    const UserCheck = (p) => <LucideIcon name="UserCheck" {...p} />;
+    const LocateFixed = (p) => <LucideIcon name="LocateFixed" {...p} />;
+    const MapIcon = (p) => <LucideIcon name="Map" {...p} />;
+    const ChevronLeft = (p) => <LucideIcon name="ChevronLeft" {...p} />;
+    const Copy = (p) => <LucideIcon name="Copy" {...p} />;
+    const Check = (p) => <LucideIcon name="Check" {...p} />;
+    const Tags = (p) => <LucideIcon name="Tags" {...p} />;
+    const Edit3 = (p) => <LucideIcon name="Edit3" {...p} />;
+    const Save = (p) => <LucideIcon name="Save" {...p} />;
+    const ArrowUp = (p) => <LucideIcon name="ArrowUp" {...p} />;
+    const ArrowDown = (p) => <LucideIcon name="ArrowDown" {...p} />;
+
+    // ============================
+    //  IMAGENS: Lógica de redimensionamento ROBUSTA (Standard)
+    // ============================
+    
+    // Função "Padrão Ouro" para compatibilidade máxima (FileReader + Canvas)
+    const resizeImageStandard = (file, maxSide = 1200, quality = 0.65) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            // Calcular proporção
+            if (width > height) {
+              if (width > maxSide) {
+                height = Math.round((height * maxSide) / width);
+                width = maxSide;
+              }
+            } else {
+              if (height > maxSide) {
+                width = Math.round((width * maxSide) / height);
+                height = maxSide;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            // Otimização de renderização
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Forçar JPEG garante que o PDF final seja compatível e pequeno
+            const mime = 'image/jpeg';
+            
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve({ 
+                  blob, 
+                  width, 
+                  height, 
+                  mime,
+                  url: URL.createObjectURL(blob)
+                });
+              } else {
+                reject(new Error("Falha na compressão do Canvas"));
+              }
+            }, mime, quality);
+          };
+          img.onerror = () => reject(new Error("Imagem inválida"));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error("Erro ao ler arquivo"));
+        reader.readAsDataURL(file);
+      });
+    };
+
+    // ============================
+    //  PRINT: aguardar imagens prontas
+    // ============================
+    async function waitForImagesReady(rootEl) {
+      if (!rootEl) return;
+
+      const imgs = Array.from(rootEl.querySelectorAll("img"));
+      await Promise.all(
+        imgs.map(async (img) => {
+          try {
+            if (!img.complete) {
+              await new Promise((res) => {
+                const done = () => res();
+                img.addEventListener("load", done, { once: true });
+                img.addEventListener("error", done, { once: true });
+              });
+            }
+            if (img.decode) {
+              await img.decode().catch(() => {});
+            }
+          } catch {}
+        })
+      );
+    }
+
+    const App = () => {
+      const imgBrasaoURL = "https://www.df.gov.br/wp-conteudo/uploads/2015/10/Bras%C3%A3o_do_Distrito_Federal_Brasil.png";
+      const MYMAPS_HISTORY_KEY = "mymaps_history_v1";
+      const categoriasMyMaps = [
+        "Buraco em Via",
+        "Poda de Árvore",
+        "Manutenção de Parquinho",
+        "Iluminação Pública",
+        "Calçada Irregular",
+        "Lixo/Entulho Acumulado",
+        "Drenagem/Boca de Lobo",
+        "Sinalização Viária",
+        "Outros",
+      ];
+
+      const [view, setView] = useState("generator");
+      const [copied, setCopied] = useState(false);
+      const [autoSaved, setAutoSaved] = useState(false);
+
+      // Booleana: compressão ligada/desligada (salva no localStorage)
+      const [compressEnabled, setCompressEnabled] = useState(() => {
+        try {
+          const v = localStorage.getItem("dirob_compress_enabled_v1");
+          return v === null ? true : v === "1";
+        } catch {
+          return true;
+        }
+      });
+
+      useEffect(() => {
+        try {
+          localStorage.setItem("dirob_compress_enabled_v1", compressEnabled ? "1" : "0");
+        } catch {}
+      }, [compressEnabled]);
+
+      const [reportData, setReportData] = useState(() => {
+        let savedData = {};
+        try {
+          const stored = localStorage.getItem("dirob_user_prefs_v2");
+          if (stored) savedData = JSON.parse(stored);
+        } catch (e) { console.error("Erro ao ler dados salvos", e); }
+
+        return {
+          titulo: "RELATÓRIO DE VISTORIA TÉCNICA",
+          orgao: "GOVERNO DO DISTRITO FEDERAL",
+          admRegional: "ADMINISTRAÇÃO REGIONAL DO PLANO PILOTO",
+          setor: savedData.setor || "",
+          vistoriador: savedData.vistoriador || "",
+          vistoriadorMatricula: savedData.vistoriadorMatricula || "",
+          elaboradorNome: savedData.elaboradorNome || "",
+          elaboradorCargo: savedData.elaboradorCargo || "",
+          elaboradorMatricula: savedData.elaboradorMatricula || "",
+          assunto: "",
+          numeroProcesso: "",
+          data: new Date().toISOString().split("T")[0],
+          local: "",
+          coordenadas: "",
+          descricaoInicial: "",
+          conclusao: "",
+          elaboradorData: new Date().toLocaleDateString("pt-BR"),
+          categoria: categoriasMyMaps[0],
+          categoriaOutra: "",
+        };
+      });
+
+      // Fotos: {id, url(blob), legenda, bytes, mime, w, h}
+      const [photos, setPhotos] = useState([]);
+      const [photosPerRow, setPhotosPerRow] = useState(2);
+      const [mapUrl, setMapUrl] = useState("");
+      const reportRef = useRef(null);
+
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [isPrinting, setIsPrinting] = useState(false);
+
+      const truncate = (str, limit = 64) =>
+        str ? str.toString().replace(/\n/g, " ").replace(/\t/g, " ").trim().substring(0, limit) + (str.length > limit ? "..." : "") : "";
+
+      const formatDateBR = (iso) => {
+        if (!iso) return "";
+        const p = iso.split("-");
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+      };
+
+      const getCleanCoordinates = () => {
+        if (!reportData.coordenadas) return "";
+        const match = reportData.coordenadas.match(/-?\d+\.\d+,\s*-?\d+\.\d+/);
+        return match ? match[0].replace(/\s/g, "") : reportData.coordenadas.trim();
+      };
+
+      const formatBytes = (bytes) => {
+        if (!bytes && bytes !== 0) return "";
+        const kb = bytes / 1024;
+        if (kb < 1024) return `${Math.round(kb)} KB`;
+        return `${(kb / 1024).toFixed(2)} MB`;
+      };
+
+      const totalPhotosBytes = useMemo(
+        () => photos.reduce((acc, p) => acc + (p.bytes || 0), 0),
+        [photos]
+      );
+
+      // Preset AUTOMÁTICO por fileira (bem agressivo para PDF leve)
+      const compressionConfig = useMemo(() => {
+        if (photosPerRow === 1) return { maxSide: 1600, quality: 0.62, label: "Maior" };
+        if (photosPerRow === 2) return { maxSide: 1200, quality: 0.52, label: "Média" };
+        return { maxSide: 900, quality: 0.40, label: "Baixa" };
+      }, [photosPerRow]);
+
+      useEffect(() => {
+        const dataToSave = {
+          setor: reportData.setor,
+          vistoriador: reportData.vistoriador,
+          vistoriadorMatricula: reportData.vistoriadorMatricula,
+          elaboradorNome: reportData.elaboradorNome,
+          elaboradorCargo: reportData.elaboradorCargo,
+          elaboradorMatricula: reportData.elaboradorMatricula,
+        };
+        if (Object.values(dataToSave).some((val) => val !== "")) {
+          localStorage.setItem("dirob_user_prefs_v2", JSON.stringify(dataToSave));
+          setAutoSaved(true);
+          const t = setTimeout(() => setAutoSaved(false), 2000);
+          return () => clearTimeout(t);
+        }
+      }, [
+        reportData.setor,
+        reportData.vistoriador,
+        reportData.vistoriadorMatricula,
+        reportData.elaboradorNome,
+        reportData.elaboradorCargo,
+        reportData.elaboradorMatricula,
+      ]);
+
+      useEffect(() => {
+        const t = setTimeout(() => {
+          const c = getCleanCoordinates();
+          setMapUrl(c ? `https://maps.google.com/maps?q=${encodeURIComponent(c)}&t=m&z=17&output=embed&iwloc=near` : "");
+        }, 800);
+        return () => clearTimeout(t);
+      }, [reportData.coordenadas]);
+
+      // --- IMPORTANTE: REMOVIDA A LIMPEZA AUTOMÁTICA QUE APAGAVA FOTOS ---
+      // A limpeza agora é manual ou ao fechar a aba, para evitar o bug de fotos sumindo.
+
+      const handleInputChange = (e) => setReportData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+      // UPLOAD BATCHING FIX: Processa tudo e salva uma vez no final
+      const handlePhotoUpload = async (e) => {
+        const files = Array.from(e.target.files || []);
+        e.target.value = "";
+        if (!files.length) return;
+
+        setIsProcessing(true);
+        const newPhotos = []; // Acumulador
+
+        try {
+          for (const file of files) {
+            try {
+              if (!compressEnabled) {
+                const url = URL.createObjectURL(file);
+                newPhotos.push({
+                  id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
+                  url,
+                  legenda: "",
+                  bytes: file.size,
+                  mime: file.type || "image/*",
+                  w: 0,
+                  h: 0,
+                });
+                continue;
+              }
+
+              // Usa o método resizeImageStandard (FileReader) que é o mais seguro
+              const result = await resizeImageStandard(file, compressionConfig.maxSide, compressionConfig.quality);
+
+              newPhotos.push({
+                id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
+                url: result.url,
+                legenda: "",
+                bytes: result.blob.size,
+                mime: result.mime,
+                w: result.width,
+                h: result.height,
+              });
+
+            } catch (err) {
+              console.error("Falha ao processar imagem:", err);
+              // Fallback para arquivo original se der erro
+              const url = URL.createObjectURL(file);
+              newPhotos.push({
+                id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
+                url,
+                legenda: "",
+                bytes: file.size,
+                mime: file.type || "image/*",
+                w: 0,
+                h: 0,
+              });
+            }
+          }
+
+          // Atualiza estado de uma vez só no final para evitar sobrescrita
+          if (newPhotos.length > 0) {
+            setPhotos((prev) => [...prev, ...newPhotos]);
+          }
+
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      const updatePhotoLegenda = (id, text) =>
+        setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, legenda: text } : p)));
+
+      const removePhoto = (id) => {
+        setPhotos((prev) => {
+          const target = prev.find((p) => p.id === id);
+          if (target?.url && target.url.startsWith("blob:")) URL.revokeObjectURL(target.url);
+          return prev.filter((p) => p.id !== id);
+        });
+      };
+
+      const movePhoto = (index, direction) => {
+        if ((direction === -1 && index === 0) || (direction === 1 && index === photos.length - 1)) return;
+        const newPhotos = [...photos];
+        const temp = newPhotos[index];
+        newPhotos[index] = newPhotos[index + direction];
+        newPhotos[index + direction] = temp;
+        setPhotos(newPhotos);
+      };
+
+      // Reotimização (Opcional - só roda se necessário)
+      const recompressAllPhotos = async () => {
+        if (!compressEnabled) return;
+        if (!photos.length) return;
+
+        setIsProcessing(true);
+        try {
+          const newList = [];
+          for (const p of photos) {
+            try {
+              // Tenta ler o blob atual
+              const oldBlob = await fetch(p.url).then((r) => r.blob());
+              // Re-comprime
+              const fileLike = new File([oldBlob], "photo", { type: oldBlob.type || p.mime || "image/jpeg" });
+              const result = await resizeImageStandard(fileLike, compressionConfig.maxSide, compressionConfig.quality);
+
+              // Revoga o antigo antes de substituir (segurança de memória manual)
+              if (p.url && p.url.startsWith("blob:")) URL.revokeObjectURL(p.url);
+
+              newList.push({
+                ...p,
+                url: result.url,
+                bytes: result.blob.size,
+                mime: result.mime,
+                w: result.width,
+                h: result.height,
+              });
+            } catch (err) {
+              console.error("Falha ao reotimizar:", err);
+              newList.push(p);
+            }
+          }
+          setPhotos(newList);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      useEffect(() => {
+        if (!compressEnabled) return;
+        if (!photos.length) return;
+        if (isProcessing) return;
+
+        const t = setTimeout(() => {
+          recompressAllPhotos();
+        }, 250);
+
+        return () => clearTimeout(t);
+      }, [photosPerRow]);
+
+      // --- IMPRESSÃO: agora aguarda imagens ficarem prontas ---
+      const handlePrint = async () => {
+        if (isProcessing || isPrinting) return;
+
+        setIsPrinting(true);
+        const originalTitle = document.title;
+
+        const dateParts = reportData.data.split("-");
+        const dateFormatted = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : "Relatorio";
+
+        const safeAssunto = (reportData.assunto || "Vistoria")
+          .substring(0, 50)
+          .replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, "")
+          .trim()
+          .replace(/\s+/g, "_");
+
+        document.title = `Relatorio_DIROB_${dateFormatted}_${safeAssunto}`;
+
+        try {
+          // 1) garante que imagens do relatório estão carregadas/decodificadas
+          await waitForImagesReady(reportRef.current);
+          // 2) dá um pequeno respiro pro layout pintar tudo
+          await new Promise((r) => setTimeout(r, 200));
+
+          window.print();
+        } finally {
+          setTimeout(() => {
+            document.title = originalTitle;
+            setIsPrinting(false);
+          }, 500);
+        }
+      };
+
+      const saveMyMapsHistory = (entry) => {
+        try {
+          const raw = localStorage.getItem(MYMAPS_HISTORY_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          list.unshift(entry);
+          localStorage.setItem(MYMAPS_HISTORY_KEY, JSON.stringify(list));
+        } catch (err) {}
+      };
+
+      const handleCopyToClipboard = () => {
+        const catFinal = reportData.categoria === "Outros" ? reportData.categoriaOutra : reportData.categoria;
+        const dataRow =
+          `${truncate(reportData.assunto, 64)}\t${truncate(catFinal, 64)}\t${truncate(reportData.numeroProcesso, 64)}\t${truncate(reportData.local, 64)}\t${formatDateBR(reportData.data)}\t${getCleanCoordinates()}`;
+        const historyEntry = {
+          id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
+          assunto: reportData.assunto || "",
+          categoria: catFinal || "",
+          numeroProcesso: reportData.numeroProcesso || "",
+          local: reportData.local || "",
+          data: reportData.data || "",
+          coordenadas: getCleanCoordinates() || "",
+          createdAt: new Date().toISOString(),
+        };
+        saveMyMapsHistory(historyEntry);
+
+        const textArea = document.createElement("textarea");
+        textArea.value = dataRow;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand("copy");
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (err) {}
+        document.body.removeChild(textArea);
+      };
+
+      const photoBoxHeight = photosPerRow === 1 ? "15cm" : photosPerRow === 2 ? "9.5cm" : "7cm";
+
+      return (
+        <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row p-4 gap-6 font-sans text-slate-800">
+          {/* PAINEL */}
+          <div className="w-full md:w-[450px] bg-white rounded-xl shadow-lg p-6 md:overflow-y-auto md:max-h-[95vh] md:sticky md:top-4 border-t-4 border-[#004587] no-print-area">
+            <div className="flex items-center gap-3 mb-6 border-b pb-4">
+              <img src={imgBrasaoURL} alt="Brasão" className="h-12 w-auto object-contain" />
+              <div className="flex-1">
+                <h1 className="text-[10px] font-bold text-[#004587] uppercase tracking-tight">Sistema de Gestão</h1>
+                <h1 className="text-sm font-black text-[#004587] uppercase tracking-tighter">Relatórios DIROB v3.9</h1>
+              </div>
+              {autoSaved && (
+                <div className="text-[9px] text-emerald-600 font-bold animate-pulse flex items-center gap-1">
+                  <Save size={12}/> Salvo
+                </div>
+              )}
+            </div>
+
+            {view === "generator" ? (
+              <div className="space-y-4">
+                <section>
+                  <h2 className="text-[9px] font-black text-[#004587] uppercase mb-2 flex items-center gap-1 border-b pb-1">
+                    <Building2 size={12} /> Unidade Administrativa
+                  </h2>
+                  <input
+                    type="text"
+                    name="setor"
+                    placeholder="Ex: Diretoria de Obras"
+                    className="w-full p-2.5 border rounded-lg text-[11px] font-bold bg-blue-50/50"
+                    value={reportData.setor}
+                    onChange={handleInputChange}
+                  />
+                </section>
+
+                <section className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <h2 className="text-[9px] font-black text-[#004587] uppercase mb-3 flex items-center gap-1 border-b border-[#004587]/20 pb-1">
+                    <FileText size={12} /> Dados Técnicos
+                  </h2>
+                  <div className="space-y-2.5">
+                    <input
+                      type="text"
+                      name="assunto"
+                      placeholder="Assunto (ex: Manutenção de Via)"
+                      className="w-full p-2 border rounded text-[11px]"
+                      value={reportData.assunto}
+                      onChange={handleInputChange}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        name="vistoriador"
+                        placeholder="Nome do Vistoriador"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.vistoriador}
+                        onChange={handleInputChange}
+                      />
+                      <input
+                        type="text"
+                        name="vistoriadorMatricula"
+                        placeholder="Matrícula Vistoriador"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.vistoriadorMatricula}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      name="numeroProcesso"
+                      placeholder="Processo SEI"
+                      className="w-full p-2 border rounded text-[11px]"
+                      value={reportData.numeroProcesso}
+                      onChange={handleInputChange}
+                    />
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="text"
+                        name="local"
+                        placeholder="Endereço / Referência"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.local}
+                        onChange={handleInputChange}
+                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          name="coordenadas"
+                          placeholder="Lat, Long (Google Maps)"
+                          className="w-full p-2 pl-9 border rounded text-[11px] bg-blue-50"
+                          value={reportData.coordenadas}
+                          onChange={handleInputChange}
+                        />
+                        <LocateFixed size={14} className="absolute left-3 top-2.5 text-[#004587]" />
+                      </div>
+                      <input
+                        type="date"
+                        name="data"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.data}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-emerald-50/20 p-4 rounded-xl border border-emerald-100">
+                  <h2 className="text-[9px] font-black text-emerald-700 uppercase mb-3 flex items-center gap-1 border-b border-emerald-700/20 pb-1">
+                    <UserCheck size={12} /> Elaboração
+                  </h2>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      name="elaboradorNome"
+                      placeholder="Nome do Elaborador"
+                      className="w-full p-2 border rounded text-[11px]"
+                      value={reportData.elaboradorNome}
+                      onChange={handleInputChange}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        name="elaboradorCargo"
+                        placeholder="Cargo / Função"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.elaboradorCargo}
+                        onChange={handleInputChange}
+                      />
+                      <input
+                        type="text"
+                        name="elaboradorMatricula"
+                        placeholder="Matrícula"
+                        className="w-full p-2 border rounded text-[11px]"
+                        value={reportData.elaboradorMatricula}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-2.5">
+                  <h2 className="text-[9px] font-black text-[#004587] uppercase mb-1 flex items-center gap-1 border-b pb-1">
+                    <ClipboardCheck size={12} /> Conteúdo
+                  </h2>
+                  <textarea
+                    name="descricaoInicial"
+                    rows="2"
+                    className="w-full p-2.5 border rounded-lg text-[10px]"
+                    placeholder="Histórico..."
+                    value={reportData.descricaoInicial}
+                    onChange={handleInputChange}
+                  />
+                  <textarea
+                    name="conclusao"
+                    rows="2"
+                    className="w-full p-2.5 border rounded-lg text-[10px] font-bold"
+                    placeholder="Conclusão..."
+                    value={reportData.conclusao}
+                    onChange={handleInputChange}
+                  />
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="text-[9px] font-black text-[#004587] uppercase mb-2 flex items-center gap-1 border-b pb-1">
+                    <LayoutGrid size={12} /> Layout Fotos (qualidade automática)
+                  </h2>
+
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[1, 2, 3].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setPhotosPerRow(num)}
+                        className={`py-2 rounded-lg border text-[9px] font-black transition-all shadow-sm ${
+                          photosPerRow === num ? "bg-[#004587] text-white border-[#004587]" : "bg-white text-slate-500 hover:bg-slate-50"
+                        }`}
+                        disabled={isProcessing || isPrinting}
+                      >
+                        {num} {num === 1 ? "FOTO" : "FOTOS"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Toggle de compressão (salvo) */}
+                  <label className="flex items-center justify-between mt-2 p-3 rounded-xl border bg-slate-50">
+                    <div>
+                      <div className="text-[10px] font-black text-slate-700 uppercase">Comprimir imagens</div>
+                      <div className="text-[10px] text-slate-600">
+                        {compressEnabled
+                          ? `Ligado: ${compressionConfig.maxSide}px / q=${compressionConfig.quality} (${compressionConfig.label})`
+                          : "Desligado: mantém arquivos originais (PDF pode ficar enorme)"}
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5"
+                      checked={compressEnabled}
+                      onChange={(e) => setCompressEnabled(e.target.checked)}
+                      disabled={isProcessing || isPrinting}
+                      title="Ativa/Desativa compressão (salvo automaticamente)"
+                    />
+                  </label>
+
+                  <div className="text-[10px] text-slate-600 flex justify-between items-center mt-2">
+                    <span>Fotos: <b>{photos.length}</b></span>
+                    <span>Total (fotos): <b>{formatBytes(totalPhotosBytes)}</b></span>
+                  </div>
+
+                  {(isProcessing || isPrinting) && (
+                    <div className="mt-2 text-[10px] font-bold text-orange-600">
+                      {isPrinting ? "Preparando impressão (carregando imagens)..." : "Processando/recomprimindo imagens..."}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <label className={`flex flex-col items-center justify-center w-full h-16 border-2 border-dashed rounded-xl cursor-pointer mb-4 transition-all
+                    ${(isProcessing || isPrinting) ? "border-slate-200 bg-slate-50 cursor-wait" : "border-blue-200 bg-blue-50/50 hover:bg-blue-100/50"}`}>
+                    <Plus size={20} className={(isProcessing || isPrinting) ? "text-slate-400" : "text-[#004587]"} />
+                    <span className={`text-[10px] font-black uppercase mt-1 ${(isProcessing || isPrinting) ? "text-slate-400" : "text-[#004587]"}`}>
+                      {(isProcessing || isPrinting) ? "Aguarde..." : "Adicionar Fotos"}
+                    </span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      disabled={isProcessing || isPrinting}
+                    />
+                  </label>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                    {photos.map((photo, index) => (
+                      <div key={photo.id} className="flex gap-2 p-2 bg-slate-50 rounded-lg border items-center shadow-sm">
+                        <div className="flex flex-col gap-1 pr-2 border-r border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => movePhoto(index, -1)}
+                            disabled={index === 0 || isProcessing || isPrinting}
+                            className="text-slate-400 hover:text-[#004587] disabled:opacity-20"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => movePhoto(index, 1)}
+                            disabled={index === photos.length - 1 || isProcessing || isPrinting}
+                            className="text-slate-400 hover:text-[#004587] disabled:opacity-20"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                        </div>
+
+                        <img
+                          src={photo.url}
+                          className="w-10 h-10 object-cover rounded-md border"
+                          alt="Thumb"
+                          decoding="async"
+                        />
+
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder="Legenda..."
+                            className="text-[10px] w-full p-1.5 border rounded bg-white"
+                            value={photo.legenda}
+                            onChange={(e) => updatePhotoLegenda(photo.id, e.target.value)}
+                            disabled={isProcessing || isPrinting}
+                          />
+                          <div className="text-[9px] text-slate-500 mt-1 flex justify-between">
+                            <span>{(photo.mime || "").includes("webp") ? "WEBP" : (photo.mime || "").includes("jpeg") ? "JPG" : "IMG"}</span>
+                            <span>{formatBytes(photo.bytes)}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(photo.id)}
+                          disabled={isProcessing || isPrinting}
+                          className="text-red-300 hover:text-red-600 p-1.5 disabled:opacity-30"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="pt-4 border-t mt-2">
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="w-full flex items-center justify-center gap-2 bg-[#004587] text-white py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50"
+                    disabled={isProcessing || isPrinting}
+                  >
+                    <Printer size={16} /> GERAR PDF / IMPRIMIR
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setView("mymaps")}
+                  className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md mt-2 active:scale-95 border-b-4 border-orange-700 disabled:opacity-50"
+                  disabled={isProcessing || isPrinting}
+                >
+                  <MapIcon size={16} /> Extrair para My Maps
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <button
+                  type="button"
+                  onClick={() => setView("generator")}
+                  className="flex items-center gap-2 text-[#004587] font-bold text-xs hover:bg-slate-50 p-2 rounded-lg transition-colors w-fit"
+                >
+                  <ChevronLeft size={18} /> Voltar ao Painel
+                </button>
+
+                <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100 shadow-sm">
+                  <h2 className="text-sm font-black text-orange-700 uppercase flex items-center gap-2 mb-5">
+                    <MapIcon size={20} /> Preparar Ponto
+                  </h2>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-2">
+                        <Tags size={14} /> Selecione a Categoria
+                      </label>
+                      <select
+                        name="categoria"
+                        className="w-full p-3 border rounded-xl text-[11px] bg-white outline-none focus:ring-2 focus:ring-orange-200 border-orange-200 shadow-sm mb-3"
+                        value={reportData.categoria}
+                        onChange={handleInputChange}
+                      >
+                        {categoriasMyMaps.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+
+                      {reportData.categoria === "Outros" && (
+                        <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                          <label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-2">
+                            <Edit3 size={14} /> Especifique a Categoria
+                          </label>
+                          <input
+                            type="text"
+                            name="categoriaOutra"
+                            placeholder="Ex: Obra de drenagem..."
+                            className="w-full p-3 border rounded-xl text-[11px] outline-none focus:ring-2 focus:ring-orange-200 border-orange-200 bg-white shadow-sm"
+                            value={reportData.categoriaOutra}
+                            onChange={handleInputChange}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-white rounded-xl border border-orange-200 space-y-3 shadow-inner">
+                      <div className="border-b pb-2 flex justify-between">
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Nome do Ponto</p>
+                          <p className="text-xs font-bold text-[#004587] truncate">{truncate(reportData.assunto || "Vistoria", 40)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[8px] font-black text-slate-400 uppercase">Categoria</p>
+                          <p className="text-xs font-bold text-orange-600">
+                            {truncate(reportData.categoria === "Outros" ? reportData.categoriaOutra : reportData.categoria, 20)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 p-2 rounded border border-blue-100 flex justify-between items-center">
+                        <p className="text-[9px] font-mono text-blue-800"><b>Coords:</b> {getCleanCoordinates() || "N/A"}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyToClipboard}
+                      className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:opacity-40 ${
+                        copied ? "bg-emerald-500 text-white" : "bg-orange-600 text-white hover:bg-orange-700"
+                      }`}
+                      disabled={!reportData.coordenadas}
+                    >
+                      {copied ? <Check size={18} /> : <Copy size={18} />} {copied ? "DADOS COPIADOS!" : "COPIAR APENAS DADOS"}
+                    </button>
+                    <a
+                      href="./mymaps-historico.html"
+                      className="w-full inline-flex items-center justify-center gap-3 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-sm bg-white text-orange-700 border border-orange-200 hover:bg-orange-50"
+                    >
+                      Abrir historico
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PREVIEW DO RELATÓRIO */}
+          <div className="flex-1 bg-white shadow-2xl overflow-y-auto min-h-screen rounded-xl border border-slate-200 print-area print-area--absolute print:shadow-none print:border-none print:rounded-none report-light">
+            <div ref={reportRef} id="report-content" className="mx-auto bg-white min-h-screen report-light">
+              {/* Rodapé */}
+              <div className="hidden print:flex fixed bottom-0 left-0 right-0 h-8 flex-col items-center justify-center border-t border-slate-100 bg-white z-[999]">
+                <p className="text-[7px] font-black text-[#004587] uppercase">Governo do Distrito Federal</p>
+                <p className="text-[6px] font-bold text-slate-500 uppercase tracking-tighter">
+                  Administração Regional do Plano Piloto | {reportData.setor}
+                </p>
+              </div>
+
+              <div className="page-cover mx-auto bg-white shadow-sm print:shadow-none border-b print:border-none p-4 md:p-8">
+                <div className="flex items-center justify-between mb-4 w-full h-[100px] px-4">
+                  <div className="w-[80px] flex justify-start items-center">
+                    <img src={imgBrasaoURL} alt="Brasão DF" className="h-16 object-contain" decoding="async" />
+                  </div>
+                  <div className="flex-1 flex flex-col items-center text-center px-4">
+                    <h1 className="text-base font-bold text-[#004587] tracking-[0.2em] uppercase leading-tight">Governo do Distrito Federal</h1>
+                    <div className="w-24 h-[2px] bg-[#004587] my-1 opacity-30 rounded-full"></div>
+                    <h2 className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-tight">Administração Regional do Plano Piloto</h2>
+                    <h3 className="text-[9px] font-black text-[#004587] uppercase tracking-[0.2em] italic">{reportData.setor || "DIRETORIA"}</h3>
+                  </div>
+                  <div className="w-[80px]"></div>
+                </div>
+
+                <div className="bg-[#004587] text-white py-2 px-6 rounded-md mb-4 text-center shadow-md">
+                  <h3 className="text-xs font-black tracking-[0.2em] uppercase leading-relaxed">{reportData.titulo}</h3>
+                </div>
+
+                <div className="mb-4 border-b border-slate-100 pb-2 avoid-break">
+                  <div className="flex items-center gap-2 mb-3 px-2 font-black text-[#004587] text-[9px] tracking-[0.2em] uppercase">
+                    <ShieldCheck size={14} /> 1. Identificação Técnica
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-2 px-4 text-left text-[10px]">
+                    {reportData.assunto.trim() && (
+                      <div>
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Assunto</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.assunto}</span>
+                      </div>
+                    )}
+                    {reportData.vistoriador.trim() && (
+                      <div>
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Vistoriador</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.vistoriador}</span>
+                      </div>
+                    )}
+                    {reportData.vistoriadorMatricula.trim() && (
+                      <div>
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Matrícula Vistoriador</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.vistoriadorMatricula}</span>
+                      </div>
+                    )}
+                    {reportData.numeroProcesso.trim() && (
+                      <div>
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Processo SEI</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.numeroProcesso}</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Data</span>
+                      <span className="font-bold text-slate-900 leading-tight">{formatDateBR(reportData.data)}</span>
+                    </div>
+                    {reportData.local.trim() && (
+                      <div className="col-span-1">
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Localização</span>
+                        <span className="font-bold text-slate-900 leading-tight">{reportData.local}</span>
+                      </div>
+                    )}
+                    {reportData.coordenadas.trim() && (
+                      <div className="col-span-1">
+                        <span className="block font-black text-[#004587] uppercase text-[7px] mb-0.5 opacity-70">Coordenadas</span>
+                        <span className="font-bold text-slate-900 leading-tight font-mono">{reportData.coordenadas}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {reportData.descricaoInicial.trim() && (
+                  <div className="mb-2 avoid-break">
+                    <div className="border-b-2 border-[#004587] mb-1 pb-0.5 font-black uppercase text-[#004587] text-[10px] flex items-center gap-2 tracking-widest">
+                      <MessageSquare size={14}/> 2. Relato Situacional
+                    </div>
+                    <div className="p-3 bg-slate-50/50 rounded italic text-[10px] text-justify leading-relaxed">
+                      {reportData.descricaoInicial}
+                    </div>
+                  </div>
+                )}
+
+                {reportData.coordenadas && mapUrl && (
+                  <div className="flex flex-col flex-1 mb-2 avoid-break">
+                    <div className="flex items-center gap-2 mb-2 px-2 font-black text-[#004587] text-[9px] tracking-widest uppercase">
+                      <MapPin size={14}/> 3. Mapa de Referência
+                    </div>
+                    <div className="w-full h-[12cm] border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner">
+                      <iframe width="100%" height="100%" frameBorder="0" src={mapUrl} title="Mapa GDF"></iframe>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="page-content mx-auto bg-white p-4 md:p-8">
+                {photos.length > 0 && (
+                  <div className="mb-2 avoid-break">
+                    <div className="border-b-2 border-[#004587] mb-2 pb-0.5 font-black uppercase text-[#004587] text-[10px] flex items-center gap-2 tracking-widest">
+                      <ImageIcon size={14}/> 4. Registro de Evidências
+                    </div>
+
+                    <div className={`grid gap-2 ${photosPerRow === 1 ? "grid-cols-1" : photosPerRow === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                      {photos.map((photo, index) => (
+                        <div key={photo.id} className="photo-item border rounded shadow-sm bg-white overflow-hidden avoid-break">
+                          <div className="p-0.5 bg-slate-50 border-b text-[6px] font-black text-center text-slate-400">
+                            REGISTRO N° {String(index+1).padStart(2, "0")}
+                          </div>
+                          <div className="flex items-center justify-center bg-slate-100" style={{ height: photoBoxHeight }}>
+                            <img
+                              src={photo.url}
+                              className="w-full h-full object-contain p-0.5"
+                              alt="Vistoria"
+                              decoding="async"
+                            />
+                          </div>
+                          {photo.legenda && (
+                            <div className="p-1 text-[8px] text-slate-700 leading-tight border-t bg-white">
+                              <span className="font-bold text-[#004587] uppercase text-[7px] mr-1">Nota:</span>
+                              {photo.legenda}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {reportData.conclusao.trim() && (
+                  <div className="mb-2 avoid-break">
+                    <div className="border-b-2 border-[#004587] mb-1 pb-0.5 font-black uppercase text-[#004587] text-[10px] flex items-center gap-2 tracking-widest">
+                      <ClipboardCheck size={14}/> 5. Parecer e Conclusão
+                    </div>
+                    <div className="p-4 bg-blue-50/20 border-l-4 border-[#004587] font-bold text-slate-900 italic shadow-sm text-[10px] text-justify leading-relaxed">
+                      {reportData.conclusao}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-8 pt-4 avoid-break w-full flex flex-col items-center justify-center text-center">
+                  <div className="mb-8 text-[10px] text-slate-600">Brasília - DF, {reportData.elaboradorData}</div>
+                  <div className="w-64 h-[1px] bg-slate-400 mb-2"></div>
+                  {reportData.elaboradorNome.trim() && (
+                    <p className="text-[11px] font-black text-[#004587] uppercase tracking-widest mb-0.5">{reportData.elaboradorNome}</p>
+                  )}
+                  {reportData.elaboradorCargo.trim() && (
+                    <p className="text-[9px] font-bold text-slate-600 uppercase mb-0.5">{reportData.elaboradorCargo}</p>
+                  )}
+                  {reportData.elaboradorMatricula.trim() && (
+                    <p className="text-[9px] text-slate-500">Matrícula {reportData.elaboradorMatricula}</p>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
