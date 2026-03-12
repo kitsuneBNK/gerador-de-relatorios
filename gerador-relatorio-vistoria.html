@@ -13,7 +13,21 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="./styles.css" />
+  <link id="app-css" rel="stylesheet" href="./styles.css" />
+  <script>
+    (function () {
+      const link = document.getElementById("app-css");
+      if (!link) return;
+      const isGh = location.hostname.endsWith("github.io");
+      const repo = isGh ? location.pathname.split("/").filter(Boolean)[0] : "";
+      const fallback = repo ? `/${repo}/styles.css` : "";
+      link.addEventListener("error", () => {
+        if (fallback && link.getAttribute("href") !== fallback) {
+          link.setAttribute("href", fallback);
+        }
+      });
+    })();
+  </script>
 </head>
 
 <body class="bg-slate-100">
@@ -179,7 +193,7 @@
     }
 
     const App = () => {
-      const imgBrasaoURL = "https://www.df.gov.br/wp-conteudo/uploads/2015/10/Bras%C3%A3o_do_Distrito_Federal_Brasil.png";
+      const imgBrasaoURL = "./imagens/Bras%C3%A3o_do_Distrito_Federal_Brasil.png";
       const MYMAPS_HISTORY_KEY = "mymaps_history_v1";
       const categoriasMyMaps = [
         "Buraco em Via",
