@@ -27,9 +27,56 @@
       });
     })();
   </script>
+  <script>
+    (function () {
+      const KEY = "hub_theme_v1";
+      const defaults = { accent: "#004587", text: "#0f172a", bg: "#f1f5f9", highlight: "#22c55e" };
+      const clamp = (n) => Math.max(0, Math.min(255, n));
+      const hexToRgb = (hex) => {
+        const clean = String(hex || "").replace("#", "");
+        if (clean.length !== 6) return null;
+        return {
+          r: parseInt(clean.slice(0, 2), 16),
+          g: parseInt(clean.slice(2, 4), 16),
+          b: parseInt(clean.slice(4, 6), 16),
+        };
+      };
+      const mutedFrom = (hex) => {
+        const rgb = hexToRgb(hex);
+        if (!rgb) return "rgb(71,85,105)";
+        const mix = (c) => clamp(Math.round(c + (255 - c) * 0.35));
+        return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+      };
+      let settings = defaults;
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) settings = { ...defaults, ...JSON.parse(raw) };
+      } catch {}
+      const muted = mutedFrom(settings.text);
+      const highlightRgb = hexToRgb(settings.highlight) || { r: 34, g: 197, b: 94 };
+      const mixRgb = (rgb, target, amount) => ({
+        r: clamp(Math.round(rgb.r + (target.r - rgb.r) * amount)),
+        g: clamp(Math.round(rgb.g + (target.g - rgb.g) * amount)),
+        b: clamp(Math.round(rgb.b + (target.b - rgb.b) * amount)),
+      });
+      const toRgb = (rgb) => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+      const highlightSoft = toRgb(mixRgb(highlightRgb, { r: 255, g: 255, b: 255 }, 0.85));
+      const highlightBorder = toRgb(mixRgb(highlightRgb, { r: 255, g: 255, b: 255 }, 0.7));
+      const highlightText = toRgb(mixRgb(highlightRgb, { r: 0, g: 0, b: 0 }, 0.55));
+      const root = document.documentElement;
+      root.style.setProperty("--app-accent", settings.accent);
+      root.style.setProperty("--app-text", settings.text);
+      root.style.setProperty("--app-text-muted", muted);
+      root.style.setProperty("--app-bg", settings.bg);
+      root.style.setProperty("--app-highlight", settings.highlight);
+      root.style.setProperty("--app-highlight-soft", highlightSoft);
+      root.style.setProperty("--app-highlight-border", highlightBorder);
+      root.style.setProperty("--app-highlight-text", highlightText);
+    })();
+  </script>
 </head>
 
-<body class="bg-slate-100">
+<body class="bg-slate-100 app-theme app-bg">
   <button id="theme-toggle" class="theme-toggle no-print-area" type="button">Modo escuro</button>
   <a href="./index.html" class="back-to-index no-print-area" aria-label="Voltar ao hub">← Voltar ao hub</a>
   <div id="root"></div>
@@ -50,6 +97,177 @@
         const next = root.classList.contains("dark") ? "light" : "dark";
         localStorage.setItem(KEY, next);
         apply(next);
+      });
+    })();
+  </script>
+  <script>
+    (function () {
+      const sequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "KeyB", "KeyA"];
+      let index = 0;
+      let running = false;
+      let state = "idle";
+      let runToken = 0;
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      const ensureOverlay = () => {
+        let overlay = document.getElementById("easter-egg-overlay");
+        if (overlay) return overlay;
+        overlay = document.createElement("div");
+        overlay.id = "easter-egg-overlay";
+        overlay.className = "easter-egg-overlay";
+        overlay.innerHTML = `
+          <div class="easter-egg-card">
+            <div class="easter-egg-title" id="easter-title">Modo avançado</div>
+            <div class="easter-egg-content">
+              <div class="easter-egg-icon">×</div>
+              <div>
+                <div class="easter-egg-message" id="easter-msg"></div>
+                <div class="easter-egg-count" id="easter-count"></div>
+              </div>
+            </div>
+          </div>
+          <div class="easter-egg-image-wrap" id="easter-image-wrap">
+            <img id="easter-image" class="easter-egg-image" src="./image.png" alt="Imagem do modo avançado" />
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        return overlay;
+      };
+
+      const setOverlay = (title, message, count, iconType = "error") => {
+        const overlay = ensureOverlay();
+        overlay.classList.add("active");
+        const titleEl = overlay.querySelector("#easter-title");
+        const msgEl = overlay.querySelector("#easter-msg");
+        const countEl = overlay.querySelector("#easter-count");
+        const iconEl = overlay.querySelector(".easter-egg-icon");
+        if (titleEl) titleEl.textContent = title || "";
+        if (msgEl) msgEl.innerHTML = message || "";
+        if (countEl) countEl.textContent = typeof count === "number" ? `Contagem: ${count}` : "";
+        if (iconEl) {
+          const isOk = iconType === "ok";
+          iconEl.textContent = isOk ? "✓" : "×";
+          iconEl.classList.toggle("ok", isOk);
+        }
+      };
+
+      const hideOverlay = () => {
+        const overlay = document.getElementById("easter-egg-overlay");
+        if (overlay) overlay.classList.remove("active");
+      };
+
+      const requestFs = async () => {
+        const overlay = ensureOverlay();
+        if (overlay.requestFullscreen && !document.fullscreenElement) {
+          try { await overlay.requestFullscreen(); } catch {}
+        }
+      };
+
+      const toHex = () => `0x${Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, "0").toUpperCase()}`;
+      const formatLines = (lines, extraClass = "") =>
+        lines.map((line) => `<div class="easter-egg-line ${extraClass}">${line}</div>`).join("");
+
+      const showFullscreenImage = async (ms = 2000) => {
+        const overlay = ensureOverlay();
+        overlay.classList.add("image-mode", "active");
+        const imgEl = overlay.querySelector("#easter-image");
+        if (imgEl) imgEl.src = "./image.png";
+        if (overlay.requestFullscreen) {
+          try { await overlay.requestFullscreen(); } catch {}
+        }
+        await sleep(ms);
+        if (document.fullscreenElement) {
+          try { await document.exitFullscreen(); } catch {}
+        }
+        overlay.classList.remove("image-mode");
+      };
+
+      const showPrompt = () => {
+        setOverlay("Sistema", formatLines(["O modo avançado será iniciado.", "Pressione F11 para confirmar."]), null, "ok");
+        state = "prompt";
+      };
+
+      const startSequence = async () => {
+        const token = ++runToken;
+        state = "countdown";
+        setOverlay("Sistema", formatLines(["Iniciando o modo avançado do site..."]), 3, "ok");
+        for (let i = 3; i >= 0; i -= 1) {
+          if (token !== runToken) return;
+          setOverlay("Sistema", formatLines(["Iniciando o modo avançado do site..."]), i, "ok");
+          await sleep(1000);
+        }
+        if (token !== runToken) return;
+        const codeA = toHex();
+        const codeB = toHex();
+        const errorLines = [
+          `Exception Processing Message ${codeA} Parameters`,
+          `${codeA} ${codeB} ${codeA} ${codeB}`,
+        ];
+        setOverlay(
+          "client.exe - System Error",
+          formatLines(errorLines, "easter-egg-code") + formatLines(["", "Os arquivos foram corrompidos e o PC será formatado."]),
+          5,
+          "error"
+        );
+        for (let i = 5; i >= 0; i -= 1) {
+          if (token !== runToken) return;
+          setOverlay(
+            "client.exe - System Error",
+            formatLines(errorLines, "easter-egg-code") + formatLines(["", "Os arquivos foram corrompidos e o PC será formatado."]),
+            i,
+            "error"
+          );
+          await sleep(1000);
+        }
+        if (token !== runToken) return;
+        state = "image";
+        await showFullscreenImage(2000);
+        if (token !== runToken) return;
+        setOverlay("Sistema", formatLines(["Brincadeira! Era só um easter egg."]), null, "ok");
+        state = "final";
+        await sleep(2000);
+        if (token !== runToken) return;
+        hideOverlay();
+        state = "idle";
+        running = false;
+      };
+
+      const runEasterEgg = async () => {
+        if (running) return;
+        running = true;
+        showPrompt();
+      };
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "F11" && running) {
+          if (state === "prompt") {
+            requestFs();
+            startSequence();
+            return;
+          }
+          if (state === "countdown") {
+            runToken += 1;
+            state = "cancelled";
+            setOverlay("Sistema", formatLines(["Contagem cancelada.", "Pressione F11 para recomeçar."]), null, "ok");
+            return;
+          }
+          if (state === "cancelled") {
+            requestFs();
+            startSequence();
+            return;
+          }
+        }
+        if (running) return;
+        if (e.code === sequence[index]) {
+          index += 1;
+          if (index === sequence.length) {
+            index = 0;
+            runEasterEgg();
+          }
+        } else {
+          index = e.code === sequence[0] ? 1 : 0;
+        }
       });
     })();
   </script>
@@ -821,7 +1039,7 @@
       );
 
       return (
-        <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row p-2 sm:p-4 gap-4">
+        <div className="min-h-screen bg-slate-100 app-bg flex flex-col md:flex-row p-2 sm:p-4 gap-4">
           
           {mag.show && (
             <div className="magnifier-window fixed rounded-full overflow-hidden" style={{ left: mag.x - (MAG_SIZE / 2), top: mag.y - (MAG_SIZE / 2), width: MAG_SIZE, height: MAG_SIZE }}>
@@ -919,7 +1137,7 @@
           )}
 
           {/* PAINEL LATERAL */}
-          <div className="w-full md:w-[450px] shrink-0 bg-white rounded-2xl shadow-xl p-5 md:overflow-y-auto md:max-h-[95vh] border-t-8 border-[#004587] no-print-area custom-scrollbar">
+          <div className="w-full md:w-[450px] ui-theme shrink-0 bg-white rounded-2xl shadow-xl p-5 md:overflow-y-auto md:max-h-[95vh] border-t-8 border-[#004587] no-print-area custom-scrollbar">
             <div className="flex items-center gap-4 mb-8 border-b pb-4">
               <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão" className="h-12" />
               <div className="flex-1">

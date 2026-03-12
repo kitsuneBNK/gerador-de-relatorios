@@ -21,7 +21,7 @@
     })();
   </script>
 </head>
-<body class="min-h-screen text-slate-800 hub-body hub-theme">
+<body class="min-h-screen text-slate-800 hub-body hub-theme app-theme ui-theme">
   <main class="max-w-6xl mx-auto p-4 sm:p-6 md:p-10">
     <section class="hub-shell p-6 sm:p-8 md:p-10">
       <header class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8 md:mb-10">
@@ -48,7 +48,7 @@
       </header>
 
       <section id="hub-settings" class="hub-settings hidden mb-6">
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">
             Cor do tema
             <input id="theme-color" type="color" class="mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white p-1" />
@@ -56,6 +56,14 @@
           <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">
             Cor do texto
             <input id="text-color" type="color" class="mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white p-1" />
+          </label>
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">
+            Cor do fundo
+            <input id="bg-color" type="color" class="mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white p-1" />
+          </label>
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">
+            Cor de destaque (ativo)
+            <input id="highlight-color" type="color" class="mt-2 w-full h-12 rounded-xl border border-slate-200 bg-white p-1" />
           </label>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -99,7 +107,7 @@
     ];
 
     const statusColor = {
-      Ativo: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      Ativo: "hub-status--active",
       "Em desenvolvimento": "bg-amber-50 text-amber-700 border-amber-200",
       Inativo: "bg-slate-100 text-slate-600 border-slate-200"
     };
@@ -134,12 +142,14 @@
   <script>
     (function () {
       const KEY = "hub_theme_v1";
-      const defaults = { accent: "#004587", text: "#0f172a" };
+      const defaults = { accent: "#004587", text: "#0f172a", bg: "#f7f9fc", highlight: "#22c55e" };
       const panel = document.getElementById("hub-settings");
       const openBtn = document.getElementById("open-settings");
       const resetBtn = document.getElementById("reset-settings");
       const themeInput = document.getElementById("theme-color");
       const textInput = document.getElementById("text-color");
+      const bgInput = document.getElementById("bg-color");
+      const highlightInput = document.getElementById("highlight-color");
 
       const clamp = (n) => Math.max(0, Math.min(255, n));
       const hexToRgb = (hex) => {
@@ -157,10 +167,33 @@
         return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
       };
 
+      const mixRgb = (rgb, target, amount) => ({
+        r: clamp(Math.round(rgb.r + (target.r - rgb.r) * amount)),
+        g: clamp(Math.round(rgb.g + (target.g - rgb.g) * amount)),
+        b: clamp(Math.round(rgb.b + (target.b - rgb.b) * amount)),
+      });
+      const toRgb = (rgb) => `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+
       const applyTheme = (settings) => {
-        document.body.style.setProperty("--hub-accent", settings.accent);
-        document.body.style.setProperty("--hub-text", settings.text);
-        document.body.style.setProperty("--hub-text-muted", mutedFrom(settings.text));
+        const root = document.documentElement;
+        const muted = mutedFrom(settings.text);
+        const highlightRgb = hexToRgb(settings.highlight) || { r: 34, g: 197, b: 94 };
+        const highlightSoft = toRgb(mixRgb(highlightRgb, { r: 255, g: 255, b: 255 }, 0.85));
+        const highlightBorder = toRgb(mixRgb(highlightRgb, { r: 255, g: 255, b: 255 }, 0.7));
+        const highlightText = toRgb(mixRgb(highlightRgb, { r: 0, g: 0, b: 0 }, 0.55));
+
+        root.style.setProperty("--hub-accent", settings.accent);
+        root.style.setProperty("--hub-text", settings.text);
+        root.style.setProperty("--hub-text-muted", muted);
+        root.style.setProperty("--hub-bg", settings.bg);
+        root.style.setProperty("--app-accent", settings.accent);
+        root.style.setProperty("--app-text", settings.text);
+        root.style.setProperty("--app-text-muted", muted);
+        root.style.setProperty("--app-bg", settings.bg);
+        root.style.setProperty("--app-highlight", settings.highlight);
+        root.style.setProperty("--app-highlight-soft", highlightSoft);
+        root.style.setProperty("--app-highlight-border", highlightBorder);
+        root.style.setProperty("--app-highlight-text", highlightText);
       };
 
       const loadTheme = () => {
@@ -183,18 +216,30 @@
       applyTheme(current);
       themeInput.value = current.accent;
       textInput.value = current.text;
+      bgInput.value = current.bg;
+      highlightInput.value = current.highlight;
 
       openBtn.addEventListener("click", () => {
         panel.classList.toggle("hidden");
       });
 
       themeInput.addEventListener("input", (e) => {
-        current = { ...current, accent: e.target.value, text: textInput.value };
+        current = { ...current, accent: e.target.value, text: textInput.value, bg: bgInput.value, highlight: highlightInput.value };
         saveTheme(current);
       });
 
       textInput.addEventListener("input", (e) => {
-        current = { ...current, accent: themeInput.value, text: e.target.value };
+        current = { ...current, accent: themeInput.value, text: e.target.value, bg: bgInput.value, highlight: highlightInput.value };
+        saveTheme(current);
+      });
+
+      bgInput.addEventListener("input", (e) => {
+        current = { ...current, accent: themeInput.value, text: textInput.value, bg: e.target.value, highlight: highlightInput.value };
+        saveTheme(current);
+      });
+
+      highlightInput.addEventListener("input", (e) => {
+        current = { ...current, accent: themeInput.value, text: textInput.value, bg: bgInput.value, highlight: e.target.value };
         saveTheme(current);
       });
 
@@ -202,6 +247,8 @@
         localStorage.removeItem(KEY);
         themeInput.value = defaults.accent;
         textInput.value = defaults.text;
+        bgInput.value = defaults.bg;
+        highlightInput.value = defaults.highlight;
         current = { ...defaults };
         applyTheme(current);
       });
@@ -224,6 +271,177 @@
         const next = root.classList.contains("dark") ? "light" : "dark";
         localStorage.setItem(KEY, next);
         apply(next);
+      });
+    })();
+  </script>
+  <script>
+    (function () {
+      const sequence = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "KeyB", "KeyA"];
+      let index = 0;
+      let running = false;
+      let state = "idle";
+      let runToken = 0;
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      const ensureOverlay = () => {
+        let overlay = document.getElementById("easter-egg-overlay");
+        if (overlay) return overlay;
+        overlay = document.createElement("div");
+        overlay.id = "easter-egg-overlay";
+        overlay.className = "easter-egg-overlay";
+        overlay.innerHTML = `
+          <div class="easter-egg-card">
+            <div class="easter-egg-title" id="easter-title">Modo avançado</div>
+            <div class="easter-egg-content">
+              <div class="easter-egg-icon">×</div>
+              <div>
+                <div class="easter-egg-message" id="easter-msg"></div>
+                <div class="easter-egg-count" id="easter-count"></div>
+              </div>
+            </div>
+          </div>
+          <div class="easter-egg-image-wrap" id="easter-image-wrap">
+            <img id="easter-image" class="easter-egg-image" src="./image.png" alt="Imagem do modo avançado" />
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        return overlay;
+      };
+
+      const setOverlay = (title, message, count, iconType = "error") => {
+        const overlay = ensureOverlay();
+        overlay.classList.add("active");
+        const titleEl = overlay.querySelector("#easter-title");
+        const msgEl = overlay.querySelector("#easter-msg");
+        const countEl = overlay.querySelector("#easter-count");
+        const iconEl = overlay.querySelector(".easter-egg-icon");
+        if (titleEl) titleEl.textContent = title || "";
+        if (msgEl) msgEl.innerHTML = message || "";
+        if (countEl) countEl.textContent = typeof count === "number" ? `Contagem: ${count}` : "";
+        if (iconEl) {
+          const isOk = iconType === "ok";
+          iconEl.textContent = isOk ? "✓" : "×";
+          iconEl.classList.toggle("ok", isOk);
+        }
+      };
+
+      const hideOverlay = () => {
+        const overlay = document.getElementById("easter-egg-overlay");
+        if (overlay) overlay.classList.remove("active");
+      };
+
+      const requestFs = async () => {
+        const overlay = ensureOverlay();
+        if (overlay.requestFullscreen && !document.fullscreenElement) {
+          try { await overlay.requestFullscreen(); } catch {}
+        }
+      };
+
+      const toHex = () => `0x${Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, "0").toUpperCase()}`;
+      const formatLines = (lines, extraClass = "") =>
+        lines.map((line) => `<div class="easter-egg-line ${extraClass}">${line}</div>`).join("");
+
+      const showFullscreenImage = async (ms = 2000) => {
+        const overlay = ensureOverlay();
+        overlay.classList.add("image-mode", "active");
+        const imgEl = overlay.querySelector("#easter-image");
+        if (imgEl) imgEl.src = "./image.png";
+        if (overlay.requestFullscreen) {
+          try { await overlay.requestFullscreen(); } catch {}
+        }
+        await sleep(ms);
+        if (document.fullscreenElement) {
+          try { await document.exitFullscreen(); } catch {}
+        }
+        overlay.classList.remove("image-mode");
+      };
+
+      const showPrompt = () => {
+        setOverlay("Sistema", formatLines(["O modo avançado será iniciado.", "Pressione F11 para confirmar."]), null, "ok");
+        state = "prompt";
+      };
+
+      const startSequence = async () => {
+        const token = ++runToken;
+        state = "countdown";
+        setOverlay("Sistema", formatLines(["Iniciando o modo avançado do site..."]), 3, "ok");
+        for (let i = 3; i >= 0; i -= 1) {
+          if (token !== runToken) return;
+          setOverlay("Sistema", formatLines(["Iniciando o modo avançado do site..."]), i, "ok");
+          await sleep(1000);
+        }
+        if (token !== runToken) return;
+        const codeA = toHex();
+        const codeB = toHex();
+        const errorLines = [
+          `Exception Processing Message ${codeA} Parameters`,
+          `${codeA} ${codeB} ${codeA} ${codeB}`,
+        ];
+        setOverlay(
+          "client.exe - System Error",
+          formatLines(errorLines, "easter-egg-code") + formatLines(["", "Os arquivos foram corrompidos e o PC será formatado."]),
+          5,
+          "error"
+        );
+        for (let i = 5; i >= 0; i -= 1) {
+          if (token !== runToken) return;
+          setOverlay(
+            "client.exe - System Error",
+            formatLines(errorLines, "easter-egg-code") + formatLines(["", "Os arquivos foram corrompidos e o PC será formatado."]),
+            i,
+            "error"
+          );
+          await sleep(1000);
+        }
+        if (token !== runToken) return;
+        state = "image";
+        await showFullscreenImage(2000);
+        if (token !== runToken) return;
+        setOverlay("Sistema", formatLines(["Brincadeira! Era só um easter egg."]), null, "ok");
+        state = "final";
+        await sleep(2000);
+        if (token !== runToken) return;
+        hideOverlay();
+        state = "idle";
+        running = false;
+      };
+
+      const runEasterEgg = async () => {
+        if (running) return;
+        running = true;
+        showPrompt();
+      };
+
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "F11" && running) {
+          if (state === "prompt") {
+            requestFs();
+            startSequence();
+            return;
+          }
+          if (state === "countdown") {
+            runToken += 1;
+            state = "cancelled";
+            setOverlay("Sistema", formatLines(["Contagem cancelada.", "Pressione F11 para recomeçar."]), null, "ok");
+            return;
+          }
+          if (state === "cancelled") {
+            requestFs();
+            startSequence();
+            return;
+          }
+        }
+        if (running) return;
+        if (e.code === sequence[index]) {
+          index += 1;
+          if (index === sequence.length) {
+            index = 0;
+            runEasterEgg();
+          }
+        } else {
+          index = e.code === sequence[0] ? 1 : 0;
+        }
       });
     })();
   </script>

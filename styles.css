@@ -17,6 +17,46 @@ body {
   background-color: #f1f5f9;
 }
 
+:root {
+  --app-accent: #004587;
+  --app-text: #0f172a;
+  --app-text-muted: #475569;
+  --app-bg: #f1f5f9;
+  --app-highlight: #22c55e;
+  --app-highlight-soft: #dcfce7;
+  --app-highlight-border: #bbf7d0;
+  --app-highlight-text: #166534;
+}
+
+.app-theme {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-bg { background-color: var(--app-bg) !important; }
+
+.ui-theme .text-slate-900,
+.ui-theme .text-slate-800,
+.ui-theme .text-slate-700 {
+  color: var(--app-text) !important;
+}
+
+.ui-theme .text-slate-600,
+.ui-theme .text-slate-500,
+.ui-theme .text-slate-400 {
+  color: var(--app-text-muted) !important;
+}
+
+.ui-theme .text-\[\#004587\] { color: var(--app-accent) !important; }
+.ui-theme .bg-\[\#004587\] { background-color: var(--app-accent) !important; }
+.ui-theme .border-\[\#004587\] { border-color: var(--app-accent) !important; }
+
+.hub-status--active {
+  background: var(--app-highlight-soft) !important;
+  color: var(--app-highlight-text) !important;
+  border-color: var(--app-highlight-border) !important;
+}
+
 .theme-toggle {
   position: fixed;
   right: 16px;
@@ -60,17 +100,17 @@ body {
 
 /* Hub */
 .hub-theme {
-  --hub-accent: #004587;
-  --hub-text: #0f172a;
-  --hub-text-muted: #475569;
-  --hub-bg: radial-gradient(900px 500px at 10% 10%, rgba(56, 189, 248, 0.18), transparent 60%),
+  --hub-accent: var(--app-accent);
+  --hub-text: var(--app-text);
+  --hub-text-muted: var(--app-text-muted);
+  --hub-bg: var(--app-bg);
+  --hub-bg-pattern: radial-gradient(900px 500px at 10% 10%, rgba(56, 189, 248, 0.18), transparent 60%),
     radial-gradient(700px 400px at 90% 20%, rgba(34, 197, 94, 0.16), transparent 55%),
-    radial-gradient(600px 600px at 80% 90%, rgba(99, 102, 241, 0.12), transparent 60%),
-    #f7f9fc;
+    radial-gradient(600px 600px at 80% 90%, rgba(99, 102, 241, 0.12), transparent 60%);
 }
 
 .hub-body {
-  background: var(--hub-bg);
+  background: var(--hub-bg-pattern), var(--hub-bg);
 }
 
 .hub-shell {
@@ -173,6 +213,10 @@ body {
 .hub-theme .text-slate-500,
 .hub-theme .text-slate-400 {
   color: var(--hub-text-muted) !important;
+}
+
+.hub-theme.hub-body {
+  background: var(--hub-bg-pattern), var(--hub-bg) !important;
 }
 
 .hub-settings {
@@ -281,6 +325,31 @@ body {
 .dark .bg-white/95,
 .dark .bg-white/80 { background-color: #0f172a !important; }
 
+/* Hub theme overrides (force after dark rules) */
+.hub-theme .hub-cta {
+  background: var(--hub-accent) !important;
+  border-color: var(--hub-accent) !important;
+}
+
+.hub-theme .hub-cta:hover { filter: brightness(0.9); }
+
+.hub-theme .hub-pill {
+  color: var(--hub-accent) !important;
+  border-color: var(--hub-accent) !important;
+}
+
+.hub-theme .text-slate-900,
+.hub-theme .text-slate-800,
+.hub-theme .text-slate-700 {
+  color: var(--hub-text) !important;
+}
+
+.hub-theme .text-slate-600,
+.hub-theme .text-slate-500,
+.hub-theme .text-slate-400 {
+  color: var(--hub-text-muted) !important;
+}
+
 /* Preserve report preview in light mode even when dark is active */
 .dark .report-light { color: #0f172a !important; }
 .dark .report-light .bg-white { background-color: #ffffff !important; }
@@ -355,6 +424,140 @@ body {
   touch-action: none;
   user-select: none;
 }
+
+/* Easter egg */
+.easter-egg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  color: #111827;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10002;
+  text-align: center;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.easter-egg-overlay.active { display: flex; }
+
+.easter-egg-card {
+  max-width: 560px;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #7b8ea5;
+  border-radius: 6px;
+  padding: 0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.3);
+  overflow: hidden;
+}
+
+.easter-egg-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #5b7aa3 0%, #3f5e85 100%);
+  border-bottom: 1px solid #2f4f75;
+  color: #f8fafc;
+  text-align: left;
+}
+
+.easter-egg-message {
+  margin-top: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  padding: 12px 14px 6px;
+  text-align: left;
+  white-space: pre-line;
+}
+
+.easter-egg-count {
+  margin-top: 0;
+  padding: 0 14px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: left;
+}
+
+.easter-egg-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid #cbd5e1;
+  background: #f1f5f9;
+}
+
+.easter-egg-button {
+  border: 1px solid #6b7280;
+  background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+  color: #0f172a;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 18px;
+}
+
+.easter-egg-image-wrap {
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.easter-egg-image {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+}
+
+.easter-egg-overlay.image-mode .easter-egg-card { display: none; }
+.easter-egg-overlay.image-mode .easter-egg-image-wrap { display: flex; }
+
+.easter-egg-content {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 12px;
+  padding: 14px 14px 4px;
+}
+
+.easter-egg-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dc2626;
+  border: 2px solid #b91c1c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.easter-egg-icon.ok {
+  background: #16a34a;
+  border-color: #15803d;
+}
+
+.easter-egg-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.easter-egg-line { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
+.easter-egg-code { font-family: "Consolas", "Courier New", monospace; font-size: 11px; }
 
 @media print {
   body * { visibility: hidden !important; }
