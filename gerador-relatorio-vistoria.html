@@ -464,6 +464,8 @@
           orgao: "GOVERNO DO DISTRITO FEDERAL",
           admRegional: "ADMINISTRAÇÃO REGIONAL DO PLANO PILOTO",
           setor: savedData.setor || "",
+          telefone: savedData.telefone ?? "(61) 3329-0400",
+          endereco: savedData.endereco ?? "Edifício Via Capital - Centro Empresarial, SBN Quadra 02 Bloco K - Asa Norte, Brasília - DF, 70040-020",
           vistoriador: savedData.vistoriador || "",
           vistoriadorMatrícula: savedData.vistoriadorMatrícula || "",
           elaboradorNome: savedData.elaboradorNome || "",
@@ -513,9 +515,40 @@
         return `${(kb / 1024).toFixed(2)} MB`;
       };
 
+      const CoverField = ({ label, value, wide = false }) => {
+        const text = String(value || "").trim();
+        if (!text) return null;
+        return (
+          <div className={wide ? "report-cover-item--wide" : ""}>
+            <span className="report-cover-label">{label}</span>
+            <span className="report-cover-value">{text}</span>
+          </div>
+        );
+      };
+
       const totalPhotosBytes = useMemo(
         () => photos.reduce((acc, p) => acc + (p.bytes || 0), 0),
         [photos]
+      );
+
+      const coverSubtitle = useMemo(
+        () => String(reportData.setor || "").trim(),
+        [reportData.setor]
+      );
+
+      const coverMetaLine = useMemo(
+        () =>
+          [reportData.local, reportData.numeroProcesso]
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+            .join(" • "),
+        [reportData.local, reportData.numeroProcesso]
+      );
+
+      // A capa usa o assunto do processo como titulo principal do documento.
+      const coverTitle = useMemo(
+        () => String(reportData.assunto || "").trim() || reportData.titulo,
+        [reportData.assunto, reportData.titulo]
       );
 
       // Preset AUTOMÁTICO por fileira (bem agressivo para PDF leve)
@@ -528,6 +561,8 @@
       useEffect(() => {
         const dataToSave = {
           setor: reportData.setor,
+          telefone: reportData.telefone,
+          endereco: reportData.endereco,
           vistoriador: reportData.vistoriador,
           vistoriadorMatrícula: reportData.vistoriadorMatrícula,
           elaboradorNome: reportData.elaboradorNome,
@@ -542,6 +577,8 @@
         }
       }, [
         reportData.setor,
+        reportData.telefone,
+        reportData.endereco,
         reportData.vistoriador,
         reportData.vistoriadorMatrícula,
         reportData.elaboradorNome,
@@ -794,14 +831,32 @@
                   <h2 className="text-[9px] font-black text-[#004587] uppercase mb-2 flex items-center gap-1 border-b pb-1">
                     <Building2 size={12} /> Unidade Administrativa
                   </h2>
-                  <input
-                    type="text"
-                    name="setor"
-                    placeholder="Ex: Diretoria de Obras"
-                    className="w-full p-2.5 border rounded-lg text-[11px] font-bold bg-blue-50/50"
-                    value={reportData.setor}
-                    onChange={handleInputChange}
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      name="setor"
+                      placeholder="Ex: Diretoria de Obras"
+                      className="w-full p-2.5 border rounded-lg text-[11px] font-bold bg-blue-50/50"
+                      value={reportData.setor}
+                      onChange={handleInputChange}
+                    />
+                    <input
+                      type="text"
+                      name="telefone"
+                      placeholder="Telefone"
+                      className="w-full p-2.5 border rounded-lg text-[11px] bg-blue-50/50"
+                      value={reportData.telefone}
+                      onChange={handleInputChange}
+                    />
+                    <textarea
+                      name="endereco"
+                      rows="3"
+                      placeholder="Endereço institucional"
+                      className="w-full p-2.5 border rounded-lg text-[11px] bg-blue-50/50 resize-y"
+                      value={reportData.endereco}
+                      onChange={handleInputChange}
+                    />
+                  </div>
                 </section>
 
                 <section className="bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -1175,24 +1230,41 @@
                 </p>
               </div>
 
-              <div className="page-cover mx-auto bg-white shadow-sm print:shadow-none border-b print:border-none p-4 md:p-8">
-                <div className="flex items-center justify-between mb-4 w-full h-[100px] px-4">
-                  <div className="w-[80px] flex justify-start items-center">
-                    <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão DF" className="h-16 object-contain" decoding="async" />
-                  </div>
-                  <div className="flex-1 flex flex-col items-center text-center px-4">
-                    <h1 className="text-base font-bold text-[#004587] tracking-[0.2em] uppercase leading-tight">Governo do Distrito Federal</h1>
-                    <div className="w-24 h-[2px] bg-[#004587] my-1 opacity-30 rounded-full"></div>
-                    <h2 className="text-[10px] font-bold text-slate-600 uppercase tracking-widest leading-tight">Administração Regional do Plano Piloto</h2>
-                    <h3 className="text-[9px] font-black text-[#004587] uppercase tracking-[0.2em] italic">{reportData.setor || "DIRETORIA"}</h3>
-                  </div>
-                  <div className="w-[80px]"></div>
+              {/* Capa exclusiva para abrir o relatório como uma folha separada. */}
+              <div className="report-cover-page" data-pdf-cover="true">
+                <div className="report-cover-brand">
+                  <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} alt="Brasão DF" className="report-cover-logo" decoding="async" />
+                  <h1 className="report-cover-orgao">{reportData.orgao}</h1>
+                  <h2 className="report-cover-adm">{reportData.admRegional}</h2>
+                  <h3 className="report-cover-setor">{reportData.setor || "DIRETORIA RESPONSAVEL"}</h3>
                 </div>
 
-                <div className="bg-[#004587] text-white py-2 px-6 rounded-md mb-4 text-center shadow-md">
-                  <h3 className="text-xs font-black tracking-[0.2em] uppercase leading-relaxed">{reportData.titulo}</h3>
+                <div className="report-cover-main">
+                  <p className="report-cover-kicker">Relatorio Tecnico</p>
+                  <div className="report-cover-divider"></div>
+                  <h3 className="report-cover-title">{coverTitle}</h3>
+                  {coverSubtitle && <p className="report-cover-subtitle">{coverSubtitle}</p>}
+                  {coverMetaLine && <p className="report-cover-subtitle">{coverMetaLine}</p>}
                 </div>
 
+                <div>
+                  <div className="report-cover-footer">
+                    <span className="report-cover-footer-line">Brasilia - DF</span>
+                    <span className="report-cover-footer-line">{formatDateBR(reportData.data)}</span>
+                  </div>
+                  {(reportData.telefone.trim() || reportData.endereco.trim()) && (
+                    <div className="report-cover-summary report-cover-summary--contact">
+                      <div className="report-cover-summary-title">Dados de Contato</div>
+                      <div className="report-cover-grid report-cover-grid--parallel">
+                        <CoverField label="Telefone" value={reportData.telefone} />
+                        <CoverField label="Endereco da Administracao" value={reportData.endereco} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="report-document-body page-content mx-auto bg-white p-4 md:p-8" data-pdf-body="true">
                 <div className="mb-4 border-b border-slate-100 pb-2 avoid-break">
                   <div className="flex items-center gap-2 mb-3 px-2 font-black text-[#004587] text-[9px] tracking-[0.2em] uppercase">
                     <ShieldCheck size={14} /> 1. Identificação Técnica
@@ -1262,9 +1334,7 @@
                     </div>
                   </div>
                 )}
-              </div>
 
-              <div className="page-content mx-auto bg-white p-4 md:p-8">
                 {photos.length > 0 && (
                   <div className="mb-2 avoid-break">
                     <div className="border-b-2 border-[#004587] mb-2 pb-0.5 font-black uppercase text-[#004587] text-[10px] flex items-center gap-2 tracking-widest">

@@ -382,6 +382,9 @@
           orgao: "GOVERNO DO DISTRITO FEDERAL",
           admRegional: "ADMINISTRAÇÃO REGIONAL DO PLANO PILOTO",
           setor: d.setor || "COLIC - COORDENAÇÃO DE LICENCIAMENTO, OBRAS E MANUTENÇÃO",
+          telefone: d.telefone ?? "(61) 3329-0400",
+          endereco: d.endereco ?? "Edifício Via Capital - Centro Empresarial, SBN Quadra 02 Bloco K - Asa Norte, Brasília - DF, 70040-020",
+          numeroProcesso: d.numeroProcesso || "",
           tituloPrincipal: "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
           numeroRelatório: d.numeroRelatório || "27/2026",
           local: d.local || "EQS 102/103",
@@ -396,6 +399,19 @@
       });
 
       const reportCreatedAt = useMemo(() => new Date(), []);
+      const coverSubtitle = useMemo(
+        () => String(reportData.tipoIntervencao || "").trim(),
+        [reportData.tipoIntervencao]
+      );
+      // Mantem um ponto unico para o numero do processo, com fallback seguro para o numero do relatorio.
+      const processNumber = useMemo(
+        () => String(reportData.numeroProcesso || reportData.numeroRelatório || "").trim(),
+        [reportData.numeroProcesso, reportData.numeroRelatório]
+      );
+      const reportIdentifier = useMemo(
+        () => String(reportData.numeroRelatório || processNumber || "").trim(),
+        [reportData.numeroRelatório, processNumber]
+      );
       const formatDateSimple = (date) => {
         const pad = (n) => String(n).padStart(2, "0");
         const d = date;
@@ -430,6 +446,17 @@
         if (!iso) return "";
         const parts = String(iso).split("-");
         return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+      };
+
+      const CoverField = ({ label, value, wide = false }) => {
+        const text = String(value || "").trim();
+        if (!text) return null;
+        return (
+          <div className={wide ? "report-cover-item--wide" : ""}>
+            <span className="report-cover-label">{label}</span>
+            <span className="report-cover-value">{text}</span>
+          </div>
+        );
       };
 
       const [dimensions, setDimensions] = useState(() => loadSaved("calcadas_dims_v7", [{ id: "1", text: "110,0 x 3,0", color: COLORS[0] }]));
@@ -803,7 +830,7 @@
         const originalTitle = document.title;
         const wasDark = document.body.classList.contains("dark");
         if (wasDark) document.body.classList.remove("dark");
-        document.title = `Relatório_Calçadas_${reportData.numeroRelatório.replace(/\//g, "-")}_${reportData.local.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        document.title = `Relatório_Calçadas_${reportIdentifier.replace(/\//g, "-")}_${reportData.local.replace(/[^a-zA-Z0-9]/g, "_")}`;
         try {
           await waitForImagesReady(reportRef.current);
           await new Promise((r) => setTimeout(r, 200));
@@ -827,9 +854,9 @@
       };
 
       const handleCopyToMyMaps = () => {
-        const assunto = `Relatório Calçada ${reportData.numeroRelatório || ""}`.trim();
+        const assunto = `Relatório Calçada ${reportIdentifier}`.trim();
         const categoria = "Calçada";
-        const processo = reportData.numeroRelatório || "";
+        const processo = processNumber;
         const local = reportData.local || "";
         const data = formatDateIso(reportData.dataIso || "");
         const coords = "";
@@ -865,27 +892,54 @@
         const el = reportRef.current;
         if (!el) throw new Error("Relatório não encontrado.");
         await waitForImagesReady(el);
-        const canvas = await window.html2canvas(el, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        });
-        const imgData = canvas.toDataURL("image/jpeg", 0.98);
         const pdf = new window.jspdf.jsPDF("p", "mm", "a4");
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = pageWidth;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        while (heightLeft > 0) {
-          position = heightLeft - imgHeight;
-          pdf.addPage();
+
+        const renderCanvas = (target) =>
+          window.html2canvas(target, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+          });
+
+        const addLongCanvas = (canvas, startOnNewPage = false) => {
+          const imgData = canvas.toDataURL("image/jpeg", 0.98);
+          const imgWidth = pageWidth;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          let heightLeft = imgHeight;
+          let position = 0;
+
+          if (startOnNewPage) {
+            pdf.addPage();
+          }
+
           pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
           heightLeft -= pageHeight;
+
+          while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
+        };
+
+        const coverEl = el.querySelector("[data-pdf-cover]");
+        const bodyEl = el.querySelector("[data-pdf-body]");
+
+        if (coverEl && bodyEl) {
+          const coverCanvas = await renderCanvas(coverEl);
+          const coverData = coverCanvas.toDataURL("image/jpeg", 0.98);
+          pdf.addImage(coverData, "JPEG", 0, 0, pageWidth, pageHeight);
+
+          const bodyCanvas = await renderCanvas(bodyEl);
+          addLongCanvas(bodyCanvas, true);
+        } else {
+          const canvas = await renderCanvas(el);
+          addLongCanvas(canvas, false);
         }
+
         return pdf.output("blob");
       };
 
@@ -896,7 +950,7 @@
         if (wasDark) document.body.classList.remove("dark");
         try {
           const blob = await generatePdfBlob();
-          const filename = `Relatório_Calçada_${reportData.numeroRelatório || "sem-numero"}.pdf`;
+          const filename = `Relatório_Calçada_${reportIdentifier || "sem-numero"}.pdf`;
           const file = new File([blob], filename, { type: "application/pdf" });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({
@@ -917,7 +971,8 @@
             window.open(`https://wa.me/?text=${msg}`);
           }
         } catch (err) {
-          const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportData.numeroRelatório}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
+          const processLine = processNumber ? `\nProcesso: ${processNumber}` : "";
+          const msg = encodeURIComponent(`*VISTORIA GDF*\nRelatório: ${reportIdentifier}${processLine}\nLocal: ${reportData.local}\nÁrea Total: ${areaTotal.toFixed(2)} m2\nValor Estimado: ${valorTotal}`);
           window.open(`https://wa.me/?text=${msg}`);
         } finally {
           if (wasDark) document.body.classList.add("dark");
@@ -937,7 +992,9 @@
         next[index] = next[index + direction];
         next[index + direction] = temp;
         setPhotos(next);
-      };      const handleRemoveImagem = () => {
+      };
+
+      const handleRemoveImagem = () => {
         setImagemArea(null);
         setDrawnImage(null);
         bgRef.current = null;
@@ -1154,6 +1211,15 @@
                   <input type="text" placeholder="Nº do Relatório" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.numeroRelatório} onChange={e => setReportData({...reportData, numeroRelatório: e.target.value})} />
                   <input type="text" placeholder="Local" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.local} onChange={e => setReportData({...reportData, local: e.target.value})} />
                 </div>
+                <input type="text" placeholder="Nº do Processo" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.numeroProcesso} onChange={e => setReportData({...reportData, numeroProcesso: e.target.value})} />
+                <input type="text" placeholder="Telefone" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.telefone} onChange={e => setReportData({...reportData, telefone: e.target.value})} />
+                <textarea
+                  rows="3"
+                  placeholder="Endereço institucional"
+                  className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs resize-y"
+                  value={reportData.endereco}
+                  onChange={e => setReportData({...reportData, endereco: e.target.value})}
+                />
                 <input type="text" placeholder="Responsável" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriador} onChange={e => setReportData({...reportData, vistoriador: e.target.value})} />
                 <div className="grid grid-cols-2 gap-2">
                   <input type="text" placeholder="Cargo/Funcao" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.vistoriadorCargo} onChange={e => setReportData({...reportData, vistoriadorCargo: e.target.value})} />
@@ -1294,22 +1360,47 @@
           <div className="flex-1 bg-white shadow-2xl rounded-3xl border overflow-hidden hidden md:flex flex-col print:shadow-none print:border-none print:rounded-none print-flow print-overflow-visible report-light">
              <div className="bg-slate-800 p-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest print:hidden">Pré-visualização do Documento</div>
              <div className="flex-1 overflow-y-auto p-4 flex justify-center bg-slate-200 print:p-0 print:bg-white print-flow print-overflow-visible report-light">
-                <div ref={reportRef} className="bg-white w-[700px] min-h-[990px] shadow-2xl p-10 flex flex-col print-area print-area--flow print:shadow-none print:min-h-0 print:block print:h-auto report-root report-light">
-                   <div className="flex items-center justify-between mb-8 border-b pb-4">
-                      <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} className="h-16" alt="Brasão" />
-                      <div className="text-center">
-                        <h1 className="text-sm font-bold text-[#004587] uppercase leading-tight">{reportData.orgao}</h1>
-                        <h2 className="text-[10px] font-bold text-slate-500 uppercase">{reportData.admRegional}</h2>
-                        <h3 className="text-[9px] font-black text-[#004587] uppercase italic">{reportData.setor}</h3>
+                <div ref={reportRef} className="bg-white w-[700px] min-h-[990px] shadow-2xl flex flex-col print-area print-area--flow print:shadow-none print:min-h-0 print:block print:h-auto report-root report-light">
+                   <div className="report-cover-page" data-pdf-cover="true">
+                      <div className="report-cover-brand">
+                        <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} className="report-cover-logo" alt="Brasão" />
+                        <h1 className="report-cover-orgao">{reportData.orgao}</h1>
+                        <h2 className="report-cover-adm">{reportData.admRegional}</h2>
+                        <h3 className="report-cover-setor">{reportData.setor || "SETOR RESPONSAVEL"}</h3>
                       </div>
-                      <div className="w-16" />
+
+                      <div className="report-cover-main">
+                        <p className="report-cover-kicker">Levantamento Tecnico</p>
+                        <div className="report-cover-divider"></div>
+                        <h2 className="report-cover-title">{reportData.tituloPrincipal}</h2>
+                        {coverSubtitle && <p className="report-cover-subtitle">{coverSubtitle}</p>}
+                      </div>
+
+                      <div>
+                        <div className="report-cover-footer">
+                          <span className="report-cover-footer-line">Brasilia - DF</span>
+                          <span className="report-cover-footer-line">{formatDateIso(reportData.dataIso)}</span>
+                          {reportData.local.trim() && (
+                            <span className="report-cover-footer-line">Local da demanda: {reportData.local}</span>
+                          )}
+                          {processNumber && (
+                            <span className="report-cover-footer-line">Numero de processo: {processNumber}</span>
+                          )}
+                        </div>
+                        {(reportData.telefone.trim() || reportData.endereco.trim()) && (
+                          <div className="report-cover-summary report-cover-summary--contact">
+                            <div className="report-cover-summary-title">Dados de Contato</div>
+                            <div className="report-cover-grid report-cover-grid--parallel">
+                              <CoverField label="Telefone" value={reportData.telefone} />
+                              <CoverField label="Endereco" value={reportData.endereco} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                    </div>
 
-                   <div className="bg-[#004587] text-white py-2 text-center rounded-lg shadow-md mb-8">
-                      <h2 className="text-xs font-black uppercase tracking-widest">RELATÓRIO DE VISTORIA Nº {reportData.numeroRelatório} - {reportData.local}</h2>
-                   </div>
-
-                  <div className="flex-1 print:block report-body">
+                  <div className="report-document-body page-content p-10 flex-1 flex flex-col" data-pdf-body="true">
+                   <div className="flex-1 print:block report-body">
                       <div className="grid grid-cols-2 gap-8">
                         <div className="space-y-4">
                           <div className="border-l-4 border-[#004587] pl-4 py-1">
@@ -1394,7 +1485,7 @@
                       )}
                    </div>
 
-                   <div className="mt-auto pt-10 flex flex-col items-center">
+                    <div className="mt-auto pt-10 flex flex-col items-center">
                       <div className="w-64 h-[2px] bg-slate-200 mb-2" />
                       <p className="text-[11px] font-black text-[#004587] uppercase tracking-widest">{reportData.vistoriador}</p>
                       {reportData.vistoriadorCargo && (
@@ -1404,12 +1495,13 @@
                         <p className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">Matrícula: {reportData.vistoriadorMatrícula}</p>
                       )}
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Vistoria e Levantamento Técnico</p>
-                   </div>
+                    </div>
+                  </div>
                 </div>
-             </div>
+              </div>
+            </div>
           </div>
 
-        </div>
       );
     };
 
@@ -1418,23 +1510,3 @@
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -559,6 +559,263 @@ body {
 .easter-egg-line { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; }
 .easter-egg-code { font-family: "Consolas", "Courier New", monospace; font-size: 11px; }
 
+.report-cover-page {
+  position: relative;
+  min-height: 990px;
+  padding: 56px 48px 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background:
+    radial-gradient(circle at top center, rgba(0, 69, 135, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(0, 69, 135, 0.08) 0%, rgba(255, 255, 255, 0) 28%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.03), rgba(0, 69, 135, 0.02)),
+    #ffffff;
+  overflow: hidden;
+}
+
+.report-cover-page::before {
+  content: "";
+  position: absolute;
+  inset: 20px;
+  border: 2px solid rgba(0, 69, 135, 0.14);
+  pointer-events: none;
+}
+
+.report-cover-page::after {
+  content: "";
+  position: absolute;
+  top: 34px;
+  left: 48px;
+  right: 48px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #004587 0%, #7aa4d8 58%, rgba(122, 164, 216, 0) 100%);
+  opacity: 0.9;
+}
+
+.report-cover-brand,
+.report-cover-main,
+.report-cover-summary,
+.report-cover-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.report-cover-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.report-cover-logo {
+  height: 84px;
+  width: auto;
+  object-fit: contain;
+}
+
+.report-cover-orgao {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #004587;
+}
+
+.report-cover-adm {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.report-cover-setor {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #004587;
+  font-style: italic;
+}
+
+.report-cover-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 20px 0;
+}
+
+.report-cover-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.report-cover-title {
+  max-width: 620px;
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f172a;
+}
+
+.report-cover-subtitle {
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.7;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #475569;
+}
+
+.report-cover-divider {
+  width: 120px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0, 69, 135, 0), rgba(0, 69, 135, 0.7), rgba(0, 69, 135, 0));
+}
+
+.report-cover-summary {
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: 20px 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(0, 69, 135, 0.12);
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.report-cover-summary--contact {
+  margin-top: 18px;
+}
+
+.report-cover-summary--contact .report-cover-summary-title {
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+
+.report-cover-summary--contact .report-cover-label {
+  font-size: 9px;
+  margin-bottom: 3px;
+}
+
+.report-cover-summary--contact .report-cover-value {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.report-cover-summary-title {
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #004587;
+}
+
+.report-cover-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+.report-cover-grid--parallel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.report-cover-item--wide {
+  grid-column: 1 / -1;
+}
+
+.report-cover-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.report-cover-value {
+  display: block;
+  font-size: 14px;
+  line-height: 1.55;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.report-cover-footer {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.report-cover-footer-line {
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.report-document-body {
+  background: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .report-cover-page {
+    min-height: 860px;
+    padding: 48px 28px 64px;
+  }
+
+  .report-cover-page::before {
+    inset: 14px;
+  }
+
+  .report-cover-page::after {
+    left: 28px;
+    right: 28px;
+  }
+
+  .report-cover-title {
+    font-size: 26px;
+  }
+
+  .report-cover-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-cover-grid--parallel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-cover-item--wide {
+    grid-column: auto;
+  }
+
+  .report-cover-footer {
+    text-align: center;
+  }
+}
+
 @media print {
   body * { visibility: hidden !important; }
   .print-area, .print-area * { visibility: visible !important; }
@@ -599,6 +856,24 @@ body {
   .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
   .page-break { display: block !important; height: 0 !important; break-before: page !important; page-break-before: always !important; }
   .report-root, .report-body { display: block !important; }
+  .report-cover-page {
+    min-height: calc(297mm - 20mm) !important;
+    padding: 16mm 14mm 18mm !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+  .report-cover-page::before {
+    inset: 6mm !important;
+  }
+  .report-cover-page::after {
+    top: 10mm !important;
+    left: 14mm !important;
+    right: 14mm !important;
+  }
+  .report-document-body {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
   .references-section { display: block !important; break-before: page !important; page-break-before: always !important; }
   .print-flow { display: block !important; }
   .print-overflow-visible { overflow: visible !important; overflow-x: visible !important; overflow-y: visible !important; }
