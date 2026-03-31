@@ -97,6 +97,14 @@
         status: "Ativo"
       },
       {
+        id: "demandas",
+        title: "Relatório de Demandas",
+        description: "Gerador com blocos repetíveis de título, descrição e várias imagens para organizar demandas por local.",
+        file: "./gerador-relatorio-demandas.html",
+        category: "Demandas",
+        status: "Ativo"
+      },
+      {
         id: "mymaps",
         title: "Histórico My Maps",
         description: "Tabela com todos os pontos copiados para o My Maps, salvos no navegador.",
@@ -142,7 +150,7 @@
   <script>
     (function () {
       const KEY = "hub_theme_v1";
-      const defaults = { accent: "#B326B1", text: "#8D008B", bg: "#420041", highlight: "#22c55e" };
+      const defaults = { accent: "#004587", text: "#0f172a", bg: "#f7f9fc", highlight: "#22c55e" };
       const panel = document.getElementById("hub-settings");
       const openBtn = document.getElementById("open-settings");
       const resetBtn = document.getElementById("reset-settings");
@@ -447,5 +455,4 @@
   </script>
 </body>
 </html>
-
 
