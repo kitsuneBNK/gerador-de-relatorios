@@ -550,6 +550,17 @@
         () => String(reportData.assunto || "").trim() || reportData.titulo,
         [reportData.assunto, reportData.titulo]
       );
+      // Evita um quadro largo quando so um dado de contato foi preenchido.
+      const contactPhone = useMemo(
+        () => String(reportData.telefone || "").trim(),
+        [reportData.telefone]
+      );
+      const contactAddress = useMemo(
+        () => String(reportData.endereco || "").trim(),
+        [reportData.endereco]
+      );
+      const hasContactData = Boolean(contactPhone || contactAddress);
+      const isSingleContactField = Boolean(contactPhone) !== Boolean(contactAddress);
 
       // Preset AUTOMÁTICO por fileira (bem agressivo para PDF leve)
       const compressionConfig = useMemo(() => {
@@ -1252,12 +1263,12 @@
                     <span className="report-cover-footer-line">Brasilia - DF</span>
                     <span className="report-cover-footer-line">{formatDateBR(reportData.data)}</span>
                   </div>
-                  {(reportData.telefone.trim() || reportData.endereco.trim()) && (
-                    <div className="report-cover-summary report-cover-summary--contact">
+                  {hasContactData && (
+                    <div className={`report-cover-summary report-cover-summary--contact${isSingleContactField ? " report-cover-summary--compact" : ""}`}>
                       <div className="report-cover-summary-title">Dados de Contato</div>
-                      <div className="report-cover-grid report-cover-grid--parallel">
-                        <CoverField label="Telefone" value={reportData.telefone} />
-                        <CoverField label="Endereco da Administracao" value={reportData.endereco} />
+                      <div className={`report-cover-grid report-cover-grid--parallel${isSingleContactField ? " report-cover-grid--single" : ""}`}>
+                        <CoverField label="Telefone" value={contactPhone} />
+                        <CoverField label="Endereco" value={contactAddress} />
                       </div>
                     </div>
                   )}

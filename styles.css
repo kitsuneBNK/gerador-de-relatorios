@@ -699,6 +699,10 @@ body {
   margin-top: 18px;
 }
 
+.report-cover-summary--compact {
+  width: min(100%, 430px);
+}
+
 .report-cover-summary--contact .report-cover-summary-title {
   font-size: 10px;
   margin-bottom: 10px;
@@ -732,6 +736,10 @@ body {
 .report-cover-grid--parallel {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
+}
+
+.report-cover-grid--single {
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .report-cover-item--wide {
@@ -871,8 +879,9 @@ body {
     right: 14mm !important;
   }
   .report-document-body {
-    break-before: page !important;
-    page-break-before: always !important;
+    /* A capa já força a troca de página; repetir aqui cria uma folha em branco. */
+    break-before: auto !important;
+    page-break-before: auto !important;
   }
   .references-section { display: block !important; break-before: page !important; page-break-before: always !important; }
   .print-flow { display: block !important; }

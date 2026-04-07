@@ -412,6 +412,17 @@
         () => String(reportData.numeroRelatório || processNumber || "").trim(),
         [reportData.numeroRelatório, processNumber]
       );
+      // Deixa a capa adaptar o quadro de contato sem reservar espaço para campos vazios.
+      const contactPhone = useMemo(
+        () => String(reportData.telefone || "").trim(),
+        [reportData.telefone]
+      );
+      const contactAddress = useMemo(
+        () => String(reportData.endereco || "").trim(),
+        [reportData.endereco]
+      );
+      const hasContactData = Boolean(contactPhone || contactAddress);
+      const isSingleContactField = Boolean(contactPhone) !== Boolean(contactAddress);
       const formatDateSimple = (date) => {
         const pad = (n) => String(n).padStart(2, "0");
         const d = date;
@@ -1387,12 +1398,12 @@
                             <span className="report-cover-footer-line">Numero de processo: {processNumber}</span>
                           )}
                         </div>
-                        {(reportData.telefone.trim() || reportData.endereco.trim()) && (
-                          <div className="report-cover-summary report-cover-summary--contact">
+                        {hasContactData && (
+                          <div className={`report-cover-summary report-cover-summary--contact${isSingleContactField ? " report-cover-summary--compact" : ""}`}>
                             <div className="report-cover-summary-title">Dados de Contato</div>
-                            <div className="report-cover-grid report-cover-grid--parallel">
-                              <CoverField label="Telefone" value={reportData.telefone} />
-                              <CoverField label="Endereco" value={reportData.endereco} />
+                            <div className={`report-cover-grid report-cover-grid--parallel${isSingleContactField ? " report-cover-grid--single" : ""}`}>
+                              <CoverField label="Telefone" value={contactPhone} />
+                              <CoverField label="Endereco" value={contactAddress} />
                             </div>
                           </div>
                         )}

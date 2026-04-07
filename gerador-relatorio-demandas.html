@@ -552,6 +552,18 @@
         [reportMeta.localGeral, reportMeta.responsavel]
       );
 
+      // Mantem o bloco de contato proporcional quando apenas um campo estiver preenchido.
+      const contactPhone = useMemo(
+        () => String(reportMeta.telefone || "").trim(),
+        [reportMeta.telefone]
+      );
+      const contactAddress = useMemo(
+        () => String(reportMeta.endereco || "").trim(),
+        [reportMeta.endereco]
+      );
+      const hasContactData = Boolean(contactPhone || contactAddress);
+      const isSingleContactField = Boolean(contactPhone) !== Boolean(contactAddress);
+
       useEffect(() => {
         const timer = setTimeout(() => {
           try {
@@ -917,12 +929,12 @@
                         <span className="report-cover-footer-line">Numero de processo: {reportMeta.numeroProcesso}</span>
                       )}
                     </div>
-                    {(reportMeta.telefone.trim() || reportMeta.endereco.trim()) && (
-                      <div className="report-cover-summary report-cover-summary--contact">
+                    {hasContactData && (
+                      <div className={`report-cover-summary report-cover-summary--contact${isSingleContactField ? " report-cover-summary--compact" : ""}`}>
                         <div className="report-cover-summary-title">Dados de Contato</div>
-                        <div className="report-cover-grid report-cover-grid--parallel">
-                          <CoverField label="Telefone" value={reportMeta.telefone} />
-                          <CoverField label="Endereco da Administracao" value={reportMeta.endereco} />
+                        <div className={`report-cover-grid report-cover-grid--parallel${isSingleContactField ? " report-cover-grid--single" : ""}`}>
+                          <CoverField label="Telefone" value={contactPhone} />
+                          <CoverField label="Endereco" value={contactAddress} />
                         </div>
                       </div>
                     )}
