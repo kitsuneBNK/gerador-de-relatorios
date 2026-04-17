@@ -322,6 +322,13 @@
     const Save = (p) => <LucideIcon name="Save" {...p} />;
     const ArrowUp = (p) => <LucideIcon name="ArrowUp" {...p} />;
     const ArrowDown = (p) => <LucideIcon name="ArrowDown" {...p} />;
+    const PenLine = (p) => <LucideIcon name="PenLine" {...p} />;
+    const MousePointer2 = (p) => <LucideIcon name="MousePointer2" {...p} />;
+    const Undo2 = (p) => <LucideIcon name="Undo2" {...p} />;
+    const Eraser = (p) => <LucideIcon name="Eraser" {...p} />;
+    const Palette = (p) => <LucideIcon name="Palette" {...p} />;
+
+    const MAP_MARKUP_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#2563eb", "#7c3aed"];
 
     // ============================
     //  IMAGENS: Lógica de redimensionamento ROBUSTA (Standard)
@@ -488,7 +495,15 @@
       const [photos, setPhotos] = useState([]);
       const [photosPerRow, setPhotosPerRow] = useState(2);
       const [mapUrl, setMapUrl] = useState("");
+      const [mapMarkupEnabled, setMapMarkupEnabled] = useState(false);
+      const [mapMarkupMode, setMapMarkupMode] = useState("area");
+      const [mapMarkupColor, setMapMarkupColor] = useState(MAP_MARKUP_COLORS[0]);
+      const [mapMarkupPaths, setMapMarkupPaths] = useState([]);
+      const [currentMapMarkupPath, setCurrentMapMarkupPath] = useState(null);
+      const [isMapMarkupDrawing, setIsMapMarkupDrawing] = useState(false);
       const reportRef = useRef(null);
+      const mapMarkupSvgRef = useRef(null);
+      const lastMapCoordsRef = useRef("");
 
       const [isProcessing, setIsProcessing] = useState(false);
       const [isPrinting, setIsPrinting] = useState(false);
@@ -562,6 +577,68 @@
       const hasContactData = Boolean(contactPhone || contactAddress);
       const isSingleContactField = Boolean(contactPhone) !== Boolean(contactAddress);
 
+      const visibleMapMarkupPaths = useMemo(
+        () => (currentMapMarkupPath ? [...mapMarkupPaths, currentMapMarkupPath] : mapMarkupPaths),
+        [mapMarkupPaths, currentMapMarkupPath]
+      );
+
+      const buildMapMarkupPath = (points, closePath = false) => {
+        if (!points?.length) return "";
+        const [first, ...rest] = points;
+        const line = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
+        rest.forEach((point) => line.push(`L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`));
+        if (closePath && points.length > 2) line.push("Z");
+        return line.join(" ");
+      };
+
+      const getMapMarkupPoint = (event) => {
+        const svg = mapMarkupSvgRef.current;
+        if (!svg) return { x: 0, y: 0 };
+        const rect = svg.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+        return {
+          x: Math.max(0, Math.min(100, x)),
+          y: Math.max(0, Math.min(100, y)),
+        };
+      };
+
+      const finishMapMarkupPath = () => {
+        if (!isMapMarkupDrawing || !currentMapMarkupPath) return;
+        const points = currentMapMarkupPath.points || [];
+        const lineLength = points.length > 1 ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 0;
+        const validPath = currentMapMarkupPath.type === "line" ? lineLength > 0.5 : points.length > 2;
+        if (validPath) setMapMarkupPaths((prev) => [...prev, currentMapMarkupPath]);
+        setCurrentMapMarkupPath(null);
+        setIsMapMarkupDrawing(false);
+      };
+
+      const handleMapMarkupStart = (event) => {
+        if (!mapMarkupEnabled || !mapUrl) return;
+        event.preventDefault();
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+        const point = getMapMarkupPoint(event);
+        const points = mapMarkupMode === "line" ? [point, point] : [point];
+        setCurrentMapMarkupPath({
+          id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+          type: mapMarkupMode,
+          color: mapMarkupColor,
+          points,
+        });
+        setIsMapMarkupDrawing(true);
+      };
+
+      const handleMapMarkupMove = (event) => {
+        if (!mapMarkupEnabled || !isMapMarkupDrawing || !currentMapMarkupPath) return;
+        event.preventDefault();
+        const point = getMapMarkupPoint(event);
+        setCurrentMapMarkupPath((prev) => {
+          if (!prev) return prev;
+          if (prev.type === "line") return { ...prev, points: [prev.points[0], point] };
+          return { ...prev, points: [...prev.points, point] };
+        });
+      };
+
       // Preset AUTOMÁTICO por fileira (bem agressivo para PDF leve)
       const compressionConfig = useMemo(() => {
         if (photosPerRow === 1) return { maxSide: 1600, quality: 0.62, label: "Maior" };
@@ -601,9 +678,19 @@
         const t = setTimeout(() => {
           const c = getCleanCoordinates();
           setMapUrl(c ? `https://maps.google.com/maps?q=${encodeURIComponent(c)}&t=m&z=17&output=embed&iwloc=near` : "");
+          if (c !== lastMapCoordsRef.current) {
+            lastMapCoordsRef.current = c;
+            setMapMarkupPaths([]);
+            setCurrentMapMarkupPath(null);
+            setIsMapMarkupDrawing(false);
+          }
         }, 800);
         return () => clearTimeout(t);
       }, [reportData.coordenadas]);
+
+      useEffect(() => {
+        if (!mapUrl) setMapMarkupEnabled(false);
+      }, [mapUrl]);
 
       // --- IMPORTANTE: REMOVIDA A LIMPEZA AUTOMÁTICA QUE APAGAVA FOTOS ---
       // A limpeza agora é manual ou ao fechar a aba, para evitar o bug de fotos sumindo.
@@ -938,6 +1025,98 @@
                       />
                     </div>
                   </div>
+                </section>
+
+                <section className="bg-blue-50/30 p-4 rounded-xl border border-blue-100">
+                  <h2 className="text-[9px] font-black text-[#004587] uppercase mb-3 flex items-center gap-1 border-b border-[#004587]/20 pb-1">
+                    <PenLine size={12} /> Demarcação no mapa
+                  </h2>
+                  <label className={`flex items-center justify-between gap-3 p-3 rounded-xl border bg-white ${!mapUrl ? "opacity-60" : ""}`}>
+                    <div>
+                      <div className="text-[10px] font-black text-slate-700 uppercase">Ativar desenho</div>
+                      <div className="text-[10px] text-slate-500">
+                        {mapUrl ? "Desenhe direto no mapa da pré-visualização." : "Preencha as coordenadas para liberar o mapa."}
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5"
+                      checked={mapMarkupEnabled}
+                      onChange={(e) => setMapMarkupEnabled(e.target.checked)}
+                      disabled={!mapUrl || isPrinting}
+                    />
+                  </label>
+
+                  {(mapMarkupEnabled || mapMarkupPaths.length > 0) && (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: "area", label: "Area", icon: <MousePointer2 size={13} /> },
+                          { id: "freehand", label: "Livre", icon: <PenLine size={13} /> },
+                          { id: "line", label: "Reta", icon: <PenLine size={13} /> },
+                        ].map((tool) => (
+                          <button
+                            key={tool.id}
+                            type="button"
+                            onClick={() => setMapMarkupMode(tool.id)}
+                            disabled={!mapMarkupEnabled || isPrinting}
+                            className={`py-2 rounded-lg border text-[9px] font-black uppercase flex items-center justify-center gap-1 ${
+                              mapMarkupMode === tool.id ? "bg-[#004587] text-white border-[#004587]" : "bg-white text-slate-500 hover:bg-slate-50"
+                            } disabled:opacity-50`}
+                          >
+                            {tool.icon}
+                            {tool.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1">
+                          <Palette size={13} className="text-slate-500" />
+                          {MAP_MARKUP_COLORS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => setMapMarkupColor(color)}
+                              disabled={!mapMarkupEnabled || isPrinting}
+                              className={`w-6 h-6 rounded-full border-2 ${mapMarkupColor === color ? "border-slate-900 scale-110" : "border-white"} shadow-sm disabled:opacity-50`}
+                              style={{ backgroundColor: color }}
+                              title="Cor da demarcação"
+                            />
+                          ))}
+                        </div>
+
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setMapMarkupPaths((prev) => prev.slice(0, -1))}
+                            disabled={!mapMarkupPaths.length || isPrinting}
+                            className="px-2 py-1.5 rounded-lg border bg-white text-slate-600 disabled:opacity-40"
+                            title="Desfazer"
+                          >
+                            <Undo2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMapMarkupPaths([]);
+                              setCurrentMapMarkupPath(null);
+                              setIsMapMarkupDrawing(false);
+                            }}
+                            disabled={(!mapMarkupPaths.length && !currentMapMarkupPath) || isPrinting}
+                            className="px-2 py-1.5 rounded-lg border bg-white text-red-500 disabled:opacity-40"
+                            title="Limpar demarcações"
+                          >
+                            <Eraser size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-slate-500">
+                        A demarcação é opcional e só aparece no relatório quando houver desenho no mapa.
+                      </p>
+                    </div>
+                  )}
                 </section>
 
                 <section className="bg-emerald-50/20 p-4 rounded-xl border border-emerald-100">
@@ -1339,9 +1518,52 @@
                   <div className="flex flex-col flex-1 mb-2 avoid-break">
                     <div className="flex items-center gap-2 mb-2 px-2 font-black text-[#004587] text-[9px] tracking-widest uppercase">
                       <MapPin size={14}/> 3. Mapa de Referência
+                      {mapMarkupPaths.length > 0 && <span className="text-[8px] text-emerald-700 tracking-normal normal-case">com demarcação</span>}
                     </div>
                     <div className="w-full h-[12cm] border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner">
-                      <iframe width="100%" height="100%" frameBorder="0" src={mapUrl} title="Mapa GDF"></iframe>
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        src={mapUrl}
+                        title="Mapa GDF"
+                        className={mapMarkupEnabled ? "pointer-events-none" : ""}
+                      ></iframe>
+                      {(mapMarkupEnabled || visibleMapMarkupPaths.length > 0) && (
+                        <svg
+                          ref={mapMarkupSvgRef}
+                          className={`map-markup-layer ${mapMarkupEnabled ? "map-markup-layer--active" : ""}`}
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                          onPointerDown={handleMapMarkupStart}
+                          onPointerMove={handleMapMarkupMove}
+                          onPointerUp={finishMapMarkupPath}
+                          onPointerCancel={finishMapMarkupPath}
+                          onPointerLeave={finishMapMarkupPath}
+                        >
+                          {visibleMapMarkupPaths.map((path) => {
+                            const isArea = path.type === "area";
+                            return (
+                              <path
+                                key={path.id}
+                                d={buildMapMarkupPath(path.points, isArea)}
+                                fill={isArea ? path.color : "none"}
+                                fillOpacity={isArea ? "0.18" : "0"}
+                                stroke={path.color}
+                                strokeWidth={isArea ? "0.75" : "0.9"}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            );
+                          })}
+                        </svg>
+                      )}
+                      {mapMarkupEnabled && (
+                        <div className="map-markup-hint no-print-area">
+                          Desenho ativo
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
