@@ -327,6 +327,7 @@
     const Undo2 = (p) => <LucideIcon name="Undo2" {...p} />;
     const Eraser = (p) => <LucideIcon name="Eraser" {...p} />;
     const Palette = (p) => <LucideIcon name="Palette" {...p} />;
+    const Settings = (p) => <LucideIcon name="Settings" {...p} />;
 
     const MAP_MARKUP_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#2563eb", "#7c3aed"];
 
@@ -442,6 +443,15 @@
       const [view, setView] = useState("generator");
       const [copied, setCopied] = useState(false);
       const [autoSaved, setAutoSaved] = useState(false);
+      const readNumberPreference = (key, fallback) => {
+        try {
+          const raw = localStorage.getItem(key);
+          const parsed = raw === null ? fallback : parseFloat(raw);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        } catch {
+          return fallback;
+        }
+      };
 
       // Booleana: compressão ligada/desligada (salva no localStorage)
       const [compressEnabled, setCompressEnabled] = useState(() => {
@@ -498,6 +508,16 @@
       const [mapMarkupEnabled, setMapMarkupEnabled] = useState(false);
       const [mapMarkupMode, setMapMarkupMode] = useState("area");
       const [mapMarkupColor, setMapMarkupColor] = useState(MAP_MARKUP_COLORS[0]);
+      const [mapMarkupSettingsOpen, setMapMarkupSettingsOpen] = useState(false);
+      const [mapMarkupLineWidth, setMapMarkupLineWidth] = useState(() =>
+        readNumberPreference("dirob_map_markup_line_width_v1", 1)
+      );
+      const [mapMarkupAreaOpacity, setMapMarkupAreaOpacity] = useState(() =>
+        readNumberPreference("dirob_map_markup_area_opacity_v1", 0.18)
+      );
+      const [mapHeightCm, setMapHeightCm] = useState(() =>
+        readNumberPreference("dirob_map_height_cm_v1", 12)
+      );
       const [mapMarkupPaths, setMapMarkupPaths] = useState([]);
       const [currentMapMarkupPath, setCurrentMapMarkupPath] = useState(null);
       const [isMapMarkupDrawing, setIsMapMarkupDrawing] = useState(false);
@@ -577,10 +597,30 @@
       const hasContactData = Boolean(contactPhone || contactAddress);
       const isSingleContactField = Boolean(contactPhone) !== Boolean(contactAddress);
 
+      useEffect(() => {
+        try {
+          localStorage.setItem("dirob_map_markup_line_width_v1", String(mapMarkupLineWidth));
+          localStorage.setItem("dirob_map_markup_area_opacity_v1", String(mapMarkupAreaOpacity));
+          localStorage.setItem("dirob_map_height_cm_v1", String(mapHeightCm));
+        } catch {}
+      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm]);
+
       const visibleMapMarkupPaths = useMemo(
         () => (currentMapMarkupPath ? [...mapMarkupPaths, currentMapMarkupPath] : mapMarkupPaths),
         [mapMarkupPaths, currentMapMarkupPath]
       );
+
+      const mapMarkupStyle = useMemo(() => {
+        const lineScale = Math.max(0.5, Math.min(3, mapMarkupLineWidth || 1));
+        const areaOpacity = Math.max(0.05, Math.min(0.5, mapMarkupAreaOpacity || 0.18));
+        const mapHeight = Math.max(8, Math.min(18, mapHeightCm || 12));
+        return {
+          areaStroke: (0.75 * lineScale).toFixed(2),
+          lineStroke: (0.9 * lineScale).toFixed(2),
+          areaOpacity: areaOpacity.toFixed(2),
+          mapHeight: `${mapHeight}cm`,
+        };
+      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm]);
 
       const buildMapMarkupPath = (points, closePath = false) => {
         if (!points?.length) return "";
@@ -908,6 +948,76 @@
 
       return (
         <div className="min-h-screen bg-slate-100 app-bg flex flex-col md:flex-row p-4 gap-6 font-sans text-slate-800">
+          {mapMarkupSettingsOpen && (
+            <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 no-print-area">
+              <div className="w-full max-w-md bg-white rounded-lg border border-slate-200 p-4 shadow-xl">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <div className="text-[11px] font-black uppercase text-[#004587]">Configurações do desenho</div>
+                    <div className="text-[10px] text-slate-500">Ajustes aplicados na pré-visualização e no relatório.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMapMarkupSettingsOpen(false)}
+                    className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block border-b border-slate-100 pb-3">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
+                      <span>Largura da linha</span>
+                      <span>{mapMarkupLineWidth.toFixed(1)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3"
+                      step="0.1"
+                      value={mapMarkupLineWidth}
+                      onChange={(e) => setMapMarkupLineWidth(parseFloat(e.target.value))}
+                      className="w-full mt-2"
+                    />
+                  </label>
+
+                  <label className="block border-b border-slate-100 pb-3">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
+                      <span>Opacidade da área</span>
+                      <span>{Math.round(mapMarkupAreaOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.5"
+                      step="0.01"
+                      value={mapMarkupAreaOpacity}
+                      onChange={(e) => setMapMarkupAreaOpacity(parseFloat(e.target.value))}
+                      className="w-full mt-2"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
+                      <span>Altura do mapa</span>
+                      <span>{mapHeightCm.toFixed(0)} cm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="8"
+                      max="18"
+                      step="1"
+                      value={mapHeightCm}
+                      onChange={(e) => setMapHeightCm(parseFloat(e.target.value))}
+                      className="w-full mt-2"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* PAINEL */}
           <div className="w-full md:w-[450px] ui-theme bg-white rounded-xl shadow-lg p-6 md:overflow-y-auto md:max-h-[95vh] md:sticky md:top-4 border-t-4 border-[#004587] no-print-area">
             <div className="flex items-center gap-3 mb-6 border-b pb-4">
@@ -1111,6 +1221,16 @@
                           </button>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setMapMarkupSettingsOpen(true)}
+                        disabled={isPrinting}
+                        className="w-full py-2 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        <Settings size={13} />
+                        Configurações do desenho
+                      </button>
 
                       <p className="text-[10px] text-slate-500">
                         A demarcação é opcional e só aparece no relatório quando houver desenho no mapa.
@@ -1520,7 +1640,7 @@
                       <MapPin size={14}/> 3. Mapa de Referência
                       {mapMarkupPaths.length > 0 && <span className="text-[8px] text-emerald-700 tracking-normal normal-case">com demarcação</span>}
                     </div>
-                    <div className="w-full h-[12cm] border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner">
+                    <div className="w-full border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner" style={{ height: mapMarkupStyle.mapHeight }}>
                       <iframe
                         width="100%"
                         height="100%"
@@ -1548,9 +1668,9 @@
                                 key={path.id}
                                 d={buildMapMarkupPath(path.points, isArea)}
                                 fill={isArea ? path.color : "none"}
-                                fillOpacity={isArea ? "0.18" : "0"}
+                                fillOpacity={isArea ? mapMarkupStyle.areaOpacity : "0"}
                                 stroke={path.color}
-                                strokeWidth={isArea ? "0.75" : "0.9"}
+                                strokeWidth={isArea ? mapMarkupStyle.areaStroke : mapMarkupStyle.lineStroke}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 vectorEffect="non-scaling-stroke"
