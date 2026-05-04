@@ -940,6 +940,7 @@
           // 2) dá um pequeno respiro pro layout pintar tudo
           await new Promise((r) => setTimeout(r, 200));
 
+          recordReportInMyMapsHistory("pdf");
           window.print();
         } finally {
           setTimeout(() => {
@@ -954,16 +955,24 @@
         try {
           const raw = localStorage.getItem(MYMAPS_HISTORY_KEY);
           const list = raw ? JSON.parse(raw) : [];
-          list.unshift(entry);
-          localStorage.setItem(MYMAPS_HISTORY_KEY, JSON.stringify(list));
+          const normalize = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+          const historyKey = (item) =>
+            [
+              item.assunto,
+              item.categoria,
+              item.numeroProcesso,
+              item.local,
+              item.data,
+              item.coordenadas,
+            ].map(normalize).join("|");
+          const next = [entry, ...list.filter((item) => historyKey(item) !== historyKey(entry))].slice(0, 200);
+          localStorage.setItem(MYMAPS_HISTORY_KEY, JSON.stringify(next));
         } catch (err) {}
       };
 
-      const handleCopyToClipboard = () => {
+      const buildMyMapsHistoryEntry = (source = "manual") => {
         const catFinal = reportData.categoria === "Outros" ? reportData.categoriaOutra : reportData.categoria;
-        const dataRow =
-          `${truncate(reportData.assunto, 64)}\t${truncate(catFinal, 64)}\t${truncate(reportData.numeroProcesso, 64)}\t${truncate(reportData.local, 64)}\t${formatDateBR(reportData.data)}\t${getCleanCoordinates()}`;
-        const historyEntry = {
+        return {
           id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
           assunto: reportData.assunto || "",
           categoria: catFinal || "",
@@ -971,8 +980,21 @@
           local: reportData.local || "",
           data: reportData.data || "",
           coordenadas: getCleanCoordinates() || "",
+          origem: source,
+          salvoEm: new Date().toISOString(),
         };
+      };
+
+      const recordReportInMyMapsHistory = (source = "manual") => {
+        const historyEntry = buildMyMapsHistoryEntry(source);
         saveMyMapsHistory(historyEntry);
+        return historyEntry;
+      };
+
+      const handleCopyToClipboard = () => {
+        const historyEntry = recordReportInMyMapsHistory("manual");
+        const dataRow =
+          `${truncate(historyEntry.assunto, 64)}\t${truncate(historyEntry.categoria, 64)}\t${truncate(historyEntry.numeroProcesso, 64)}\t${truncate(historyEntry.local, 64)}\t${formatDateBR(historyEntry.data)}\t${historyEntry.coordenadas}`;
 
         const textArea = document.createElement("textarea");
         textArea.value = dataRow;

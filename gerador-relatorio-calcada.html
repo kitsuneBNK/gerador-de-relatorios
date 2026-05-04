@@ -766,6 +766,7 @@
         try {
           await waitForImagesReady(reportRef.current);
           await new Promise((r) => setTimeout(r, 200));
+          recordReportInMyMapsHistory("pdf");
           window.print();
         } finally {
           setTimeout(() => { 
@@ -780,21 +781,28 @@
         try {
           const raw = localStorage.getItem(MYMAPS_HISTORY_KEY);
           const list = raw ? JSON.parse(raw) : [];
-          list.unshift(entry);
-          localStorage.setItem(MYMAPS_HISTORY_KEY, JSON.stringify(list));
+          const normalize = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+          const historyKey = (item) =>
+            [
+              item.assunto,
+              item.categoria,
+              item.numeroProcesso,
+              item.local,
+              item.data,
+              item.coordenadas,
+            ].map(normalize).join("|");
+          const next = [entry, ...list.filter((item) => historyKey(item) !== historyKey(entry))].slice(0, 200);
+          localStorage.setItem(MYMAPS_HISTORY_KEY, JSON.stringify(next));
         } catch (err) {}
       };
 
-      const handleCopyToMyMaps = () => {
+      const buildMyMapsHistoryEntry = (source = "manual") => {
         const assunto = `Relatório Calçada ${reportIdentifier}`.trim();
         const categoria = "Calçada";
         const processo = processNumber;
         const local = reportData.local || "";
-        const data = formatDateIso(reportData.dataIso || "");
         const coords = cleanCoordinates;
-        const dataRow = `${assunto}\t${categoria}\t${processo}\t${local}\t${data}\t${coords}`;
-
-        const historyEntry = {
+        return {
           id: (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)),
           assunto,
           categoria,
@@ -802,8 +810,21 @@
           local,
           data: reportData.dataIso || "",
           coordenadas: coords,
+          origem: source,
+          salvoEm: new Date().toISOString(),
         };
+      };
+
+      const recordReportInMyMapsHistory = (source = "manual") => {
+        const historyEntry = buildMyMapsHistoryEntry(source);
         saveMyMapsHistory(historyEntry);
+        return historyEntry;
+      };
+
+      const handleCopyToMyMaps = () => {
+        const historyEntry = recordReportInMyMapsHistory("manual");
+        const data = formatDateIso(historyEntry.data || "");
+        const dataRow = `${historyEntry.assunto}\t${historyEntry.categoria}\t${historyEntry.numeroProcesso}\t${historyEntry.local}\t${data}\t${historyEntry.coordenadas}`;
 
         const textArea = document.createElement("textarea");
         textArea.value = dataRow;
@@ -882,6 +903,7 @@
         if (wasDark) document.body.classList.remove("dark");
         try {
           const blob = await generatePdfBlob();
+          recordReportInMyMapsHistory("pdf");
           const filename = `Relatório_Calçada_${reportIdentifier || "sem-numero"}.pdf`;
           const file = new File([blob], filename, { type: "application/pdf" });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
