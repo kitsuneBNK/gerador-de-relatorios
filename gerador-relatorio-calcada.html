@@ -383,7 +383,7 @@
           telefone: d.telefone ?? "(61) 3329-0400",
           endereco: d.endereco ?? "Edifício Via Capital - Centro Empresarial, SBN Quadra 02 Bloco K - Asa Norte, Brasília - DF, 70040-020",
           numeroProcesso: d.numeroProcesso || "",
-          tituloPrincipal: "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
+          tituloPrincipal: d.tituloPrincipal || "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
           numeroRelatório: d.numeroRelatório || "27/2026",
           local: d.local || "EQS 102/103",
           coordenadas: d.coordenadas || "",
@@ -399,8 +399,8 @@
 
       const reportCreatedAt = useMemo(() => new Date(), []);
       const coverSubtitle = useMemo(
-        () => String(reportData.tipoIntervencao || "").trim(),
-        [reportData.tipoIntervencao]
+        () => String(reportData.setor || "").trim(),
+        [reportData.setor]
       );
       // Mantem um ponto unico para o numero do processo, com fallback seguro para o numero do relatorio.
       const processNumber = useMemo(
@@ -410,6 +410,18 @@
       const reportIdentifier = useMemo(
         () => String(reportData.numeroRelatório || processNumber || "").trim(),
         [reportData.numeroRelatório, processNumber]
+      );
+      const coverMetaLine = useMemo(
+        () =>
+          [reportData.local, reportData.numeroProcesso]
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+            .join(" • "),
+        [reportData.local, reportData.numeroProcesso]
+      );
+      const coverTitle = useMemo(
+        () => String(reportData.tituloPrincipal || "").trim() || "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
+        [reportData.tituloPrincipal]
       );
       // Deixa a capa adaptar o quadro de contato sem reservar espaço para campos vazios.
       const contactPhone = useMemo(
@@ -1169,6 +1181,20 @@
             <div className="space-y-6">
               <section className="space-y-3">
                 <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><FileText size={14}/> 1. Identificacao</h2>
+                <input
+                  type="text"
+                  placeholder="Título da capa"
+                  className="w-full p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs font-black uppercase"
+                  value={reportData.tituloPrincipal}
+                  onChange={e => setReportData({...reportData, tituloPrincipal: e.target.value})}
+                />
+                <input
+                  type="text"
+                  placeholder="Setor / Diretoria da capa"
+                  className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"
+                  value={reportData.setor}
+                  onChange={e => setReportData({...reportData, setor: e.target.value})}
+                />
                 <div className="grid grid-cols-2 gap-2">
                   <input type="text" placeholder="Nº do Relatório" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.numeroRelatório} onChange={e => setReportData({...reportData, numeroRelatório: e.target.value})} />
                   <input type="text" placeholder="Local" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.local} onChange={e => setReportData({...reportData, local: e.target.value})} />
@@ -1321,26 +1347,21 @@
                         <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} className="report-cover-logo" alt="Brasão" />
                         <h1 className="report-cover-orgao">{reportData.orgao}</h1>
                         <h2 className="report-cover-adm">{reportData.admRegional}</h2>
-                        <h3 className="report-cover-setor">{reportData.setor || "SETOR RESPONSAVEL"}</h3>
+                        <h3 className="report-cover-setor">{reportData.setor || "DIRETORIA RESPONSAVEL"}</h3>
                       </div>
 
                       <div className="report-cover-main">
-                        <p className="report-cover-kicker">Levantamento Tecnico</p>
+                        <p className="report-cover-kicker">Relatorio Tecnico</p>
                         <div className="report-cover-divider"></div>
-                        <h2 className="report-cover-title">{reportData.tituloPrincipal}</h2>
+                        <h2 className="report-cover-title">{coverTitle}</h2>
                         {coverSubtitle && <p className="report-cover-subtitle">{coverSubtitle}</p>}
+                        {coverMetaLine && <p className="report-cover-subtitle">{coverMetaLine}</p>}
                       </div>
 
                       <div>
                         <div className="report-cover-footer">
                           <span className="report-cover-footer-line">Brasilia - DF</span>
                           <span className="report-cover-footer-line">{formatDateIso(reportData.dataIso)}</span>
-                          {reportData.local.trim() && (
-                            <span className="report-cover-footer-line">Local da demanda: {reportData.local}</span>
-                          )}
-                          {processNumber && (
-                            <span className="report-cover-footer-line">Numero de processo: {processNumber}</span>
-                          )}
                         </div>
                         {hasContactData && (
                           <div className={`report-cover-summary report-cover-summary--contact${isSingleContactField ? " report-cover-summary--compact" : ""}`}>
