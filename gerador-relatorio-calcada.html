@@ -273,7 +273,7 @@
   </script>
 
   <script type="text/babel">
-    const { useState, useRef, useEffect, useMemo, useCallback } = React;
+    const { useState, useRef, useEffect, useMemo } = React;
 
     // Gerador de ID seguro para telemÃ³veis (sem depender de HTTPS)
     const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -298,35 +298,24 @@
       return <span dangerouslySetInnerHTML={{ __html: svgHtml }} style={{ display: "inline-flex", alignItems: "center" }} {...props} />;
     };
 
-    const MapPin = (p) => <LucideIcon name="MapPin" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="Image" {...p} />;
     const FileText = (p) => <LucideIcon name="FileText" {...p} />;
     const Printer = (p) => <LucideIcon name="Printer" {...p} />;
     const Trash2 = (p) => <LucideIcon name="Trash2" {...p} />;
     const Plus = (p) => <LucideIcon name="Plus" {...p} />;
-    const Building2 = (p) => <LucideIcon name="Building2" {...p} />;
-    const ShieldCheck = (p) => <LucideIcon name="ShieldCheck" {...p} />;
-    const LayoutGrid = (p) => <LucideIcon name="LayoutGrid" {...p} />;
-    const UserCheck = (p) => <LucideIcon name="UserCheck" {...p} />;
-    const Save = (p) => <LucideIcon name="Save" {...p} />;
     const Undo = (p) => <LucideIcon name="Undo" {...p} />;
     const Ruler = (p) => <LucideIcon name="Ruler" {...p} />;
     const PenTool = (p) => <LucideIcon name="PenTool" {...p} />;
-    const Calculator = (p) => <LucideIcon name="Calculator" {...p} />;
-    const DollarSign = (p) => <LucideIcon name="DollarSign" {...p} />;
     const MousePointer2 = (p) => <LucideIcon name="MousePointer2" {...p} />;
     const PenLine = (p) => <LucideIcon name="PenLine" {...p} />;
     const MessageCircle = (p) => <LucideIcon name="MessageCircle" {...p} />;
-    const Maximize = (p) => <LucideIcon name="Maximize" {...p} />;
-    const Minimize = (p) => <LucideIcon name="Minimize" {...p} />;
-    const ZoomIn = (p) => <LucideIcon name="ZoomIn" {...p} />;
-    const ZoomOut = (p) => <LucideIcon name="ZoomOut" {...p} />;
-    const Move = (p) => <LucideIcon name="Move" {...p} />;
-    const Crosshair = (p) => <LucideIcon name="Crosshair" {...p} />;
     const Palette = (p) => <LucideIcon name="Palette" {...p} />;
     const MapIcon = (p) => <LucideIcon name="Map" {...p} />;
     const ArrowUp = (p) => <LucideIcon name="ArrowUp" {...p} />;
     const ArrowDown = (p) => <LucideIcon name="ArrowDown" {...p} />;
+    const Eraser = (p) => <LucideIcon name="Eraser" {...p} />;
+    const Settings = (p) => <LucideIcon name="Settings" {...p} />;
+    const LocateFixed = (p) => <LucideIcon name="LocateFixed" {...p} />;
 
     const COLORS = ["#EF4444", "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316"];
 
@@ -375,6 +364,15 @@
       const loadSaved = (key, fallback) => {
         try { const val = localStorage.getItem(key); return val ? JSON.parse(val) : fallback; } catch(e) { return fallback; }
       };
+      const readNumberPreference = (key, fallback) => {
+        try {
+          const raw = localStorage.getItem(key);
+          const parsed = raw === null ? fallback : parseFloat(raw);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        } catch {
+          return fallback;
+        }
+      };
 
       const [reportData, setReportData] = useState(() => {
         const d = loadSaved("calcadas_prefs_v7", {});
@@ -388,6 +386,7 @@
           tituloPrincipal: "LEVANTAMENTO DE CALÇADAS DANIFICADAS",
           numeroRelatório: d.numeroRelatório || "27/2026",
           local: d.local || "EQS 102/103",
+          coordenadas: d.coordenadas || "",
           descricaoRelatório: d.descricaoRelatório || "",
           descricaoImagens: d.descricaoImagens || "",
           vistoriador: d.vistoriador || "LUIZ PEDRO SORANCO MIRANDA", dataIso: d.dataIso || new Date().toISOString().split("T")[0], 
@@ -471,70 +470,37 @@
       };
 
       const [dimensions, setDimensions] = useState(() => loadSaved("calcadas_dims_v7", [{ id: "1", text: "110,0 x 3,0", color: COLORS[0] }]));
-      const [imagemArea, setImagemArea] = useState(() => { try { return localStorage.getItem("calcadas_img_v7"); } catch(e) { return null; } });
-      const [paths, setPaths] = useState(() => loadSaved("calcadas_paths_v7", []));
-
-      const [drawMode, setDrawMode] = useState('line'); 
-      const [vectorAnchor, setVectorAnchor] = useState(null);
-      const [vectorSnapDeg, setVectorSnapDeg] = useState(0);
-      const [isDrawing, setIsDrawing] = useState(false);
-      const [isFullscreen, setIsFullscreen] = useState(false);
-      const [currentPath, setCurrentPath] = useState(null);
       const [activeColor, setActiveColor] = useState(COLORS[0]);
-      const [drawnImage, setDrawnImage] = useState(imagemArea);
-      const [lineWidthScale, setLineWidthScale] = useState(() => {
-        try {
-          const v = localStorage.getItem("calcadas_line_width_v1");
-          return v ? parseFloat(v) : 1;
-        } catch (e) {
-          return 1;
-        }
-      });
-      const [pointSizeScale, setPointSizeScale] = useState(() => {
-        try {
-          const v = localStorage.getItem("calcadas_point_size_v1");
-          return v ? parseFloat(v) : 1;
-        } catch (e) {
-          return 1;
-        }
-      });
-      
-      const [zoom, setZoom] = useState(1);
-      const [pan, setPan] = useState({ x: 0, y: 0 });
-      const [isPanning, setIsPanning] = useState(false);
-      const [lastPoint, setLastPoint] = useState({ x: 0, y: 0 });
-      const [mag, setMag] = useState({ show: false, x: 0, y: 0, sx: 0, sy: 0 });
-      const MAG_SIZE = 150;
-      const MAG_ZOOM = 3;
+      const [photos, setPhotos] = useState([]);
+      const [photosPerRow, setPhotosPerRow] = useState(2);
+
+      const [mapMarkupEnabled, setMapMarkupEnabled] = useState(false);
+      const [mapMarkupMode, setMapMarkupMode] = useState("area");
+      const [mapMarkupColor, setMapMarkupColor] = useState(COLORS[0]);
+      const [mapMarkupPaths, setMapMarkupPaths] = useState(() => loadSaved("calcadas_map_paths_v1", []));
+      const [currentMapMarkupPath, setCurrentMapMarkupPath] = useState(null);
+      const [isMapMarkupDrawing, setIsMapMarkupDrawing] = useState(false);
+      const [mapMarkupSettingsOpen, setMapMarkupSettingsOpen] = useState(false);
+      const [mapMarkupLineWidth, setMapMarkupLineWidth] = useState(() =>
+        readNumberPreference("calcadas_map_line_width_v1", 1)
+      );
+      const [mapMarkupAreaOpacity, setMapMarkupAreaOpacity] = useState(() =>
+        readNumberPreference("calcadas_map_area_opacity_v1", 0.18)
+      );
+      const [plantaPdfSize, setPlantaPdfSize] = useState(() =>
+        readNumberPreference("calcadas_planta_pdf_h_v1", 10)
+      );
+      const [plantaPdfWidth, setPlantaPdfWidth] = useState(() =>
+        readNumberPreference("calcadas_planta_pdf_w_v1", 16)
+      );
 
       const [isProcessing, setIsProcessing] = useState(false);
       const [isPrinting, setIsPrinting] = useState(false);
       const [isSharing, setIsSharing] = useState(false);
 
-      const canvasRef = useRef(null);
-      const magnifierCanvasRef = useRef(null);
-      const bgRef = useRef(null);
-      const bgImgElRef = useRef(null);
-      const [photos, setPhotos] = useState([]);
-      const [photosPerRow, setPhotosPerRow] = useState(2);
-      const [plantaPdfSize, setPlantaPdfSize] = useState(() => {
-        try {
-          const v = localStorage.getItem("calcadas_planta_pdf_h_v1");
-          return v ? parseInt(v, 10) : 10;
-        } catch (e) {
-          return 10;
-        }
-      });
-      const [plantaPdfWidth, setPlantaPdfWidth] = useState(() => {
-        try {
-          const v = localStorage.getItem("calcadas_planta_pdf_w_v1");
-          return v ? parseInt(v, 10) : 16;
-        } catch (e) {
-          return 16;
-        }
-      });
-      const [showSettings, setShowSettings] = useState(false);
       const reportRef = useRef(null);
+      const mapMarkupSvgRef = useRef(null);
+      const lastMapCoordsRef = useRef(null);
 
       // --- SALVAMENTO AUTOMÃTICO ---
       useEffect(() => {
@@ -542,17 +508,16 @@
           try {
             localStorage.setItem("calcadas_prefs_v7", JSON.stringify(reportData));
             localStorage.setItem("calcadas_dims_v7", JSON.stringify(dimensions));
-            localStorage.setItem("calcadas_paths_v7", JSON.stringify(paths));
-            if (imagemArea) localStorage.setItem("calcadas_img_v7", imagemArea);
+            localStorage.setItem("calcadas_map_paths_v1", JSON.stringify(mapMarkupPaths));
             localStorage.setItem("calcadas_planta_pdf_h_v1", String(plantaPdfSize));
             localStorage.setItem("calcadas_planta_pdf_w_v1", String(plantaPdfWidth));
-            localStorage.setItem("calcadas_line_width_v1", String(lineWidthScale));
-            localStorage.setItem("calcadas_point_size_v1", String(pointSizeScale));
+            localStorage.setItem("calcadas_map_line_width_v1", String(mapMarkupLineWidth));
+            localStorage.setItem("calcadas_map_area_opacity_v1", String(mapMarkupAreaOpacity));
             setAutoSaved(true); setTimeout(() => setAutoSaved(false), 1000);
           } catch (e) { console.error("LocalStorage cheio"); }
         }, 1000);
         return () => clearTimeout(timer);
-      }, [reportData, dimensions, paths, imagemArea, plantaPdfSize, plantaPdfWidth, lineWidthScale, pointSizeScale]);
+      }, [reportData, dimensions, mapMarkupPaths, plantaPdfSize, plantaPdfWidth, mapMarkupLineWidth, mapMarkupAreaOpacity]);
 
       // --- CÃLCULOS ---
       const areaTotal = useMemo(() => {
@@ -568,271 +533,227 @@
 
       const valorTotal = (areaTotal * (parseNumber(reportData.valorMetroQuadrado) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-      // --- MOTOR DO CANVAS ---
-      useEffect(() => {
-        if (imagemArea) {
-          const img = new Image();
-          let didLoad = false;
-          const finalize = () => {
-            if (didLoad) return;
-            didLoad = true;
-            bgRef.current = img;
-            drawCanvas();
-          };
-          img.onload = finalize;
-          img.onerror = () => { bgRef.current = null; };
-          img.crossOrigin = "anonymous";
-          img.src = imagemArea;
-          if (img.complete) {
-            finalize();
-          } else if (img.decode) {
-            img.decode().then(finalize).catch(() => {});
-          }
-        } else {
-          bgRef.current = null;
-        }
-      }, [imagemArea]);
+      // --- MOTOR DO MAPA ---
+      const cleanCoordinates = useMemo(() => {
+        const raw = String(reportData.coordenadas || "").trim();
+        if (!raw) return "";
+        const match = raw.match(/-?\d+\.\d+,\s*-?\d+\.\d+/);
+        return match ? match[0].replace(/\s/g, "") : raw;
+      }, [reportData.coordenadas]);
 
-      const handleBgImageLoad = () => {
-        const img = bgImgElRef.current;
-        if (!img) return;
-        bgRef.current = img;
-        drawCanvas();
-      };
-
-      const drawCanvas = useCallback(() => {
-        const canvas = canvasRef.current;
-        const img = bgRef.current || bgImgElRef.current;
-        if (!canvas || !img) return;
-        const ctx = canvas.getContext('2d');
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        if (!w || !h) return;
-        canvas.width = w; canvas.height = h;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const all = currentPath ? [...paths, currentPath] : paths;
-        const baseWidth = Math.max(w / 140, 3) / zoom;
-        const lw = baseWidth * lineWidthScale;
-        const pointRadius = Math.max(lw * 1.8 * pointSizeScale, 2);
-
-        all.forEach(p => {
-          if (!p?.points?.length) return;
-          ctx.beginPath();
-          ctx.strokeStyle = p.color;
-          ctx.fillStyle = p.color;
-          ctx.lineWidth = lw;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-
-          if (p.type === 'vector' && p.points.length > 1) {
-            ctx.moveTo(p.points[0].x, p.points[0].y);
-            ctx.lineTo(p.points[1].x, p.points[1].y);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(p.points[0].x, p.points[0].y, pointRadius, 0, Math.PI * 2);
-            ctx.arc(p.points[1].x, p.points[1].y, pointRadius, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            ctx.moveTo(p.points[0].x, p.points[0].y);
-            p.points.forEach((pt, i) => { if(i>0) ctx.lineTo(pt.x, pt.y); });
-            ctx.stroke();
-          }
-        });
-        if (!currentPath && !isPanning) setDrawnImage(canvas.toDataURL('image/jpeg', 0.8));
-      }, [paths, currentPath, zoom, isPanning, lineWidthScale, pointSizeScale]);
-
-      useEffect(() => { drawCanvas(); }, [drawCanvas]);
-
-      const getCoords = (e) => {
-        const canvas = canvasRef.current; if(!canvas) return {x:0,y:0};
-        const rect = canvas.getBoundingClientRect();
-        const ev = e.touches ? e.touches[0] : e;
-        const rx = ev.clientX - rect.left;
-        const ry = ev.clientY - rect.top;
-        const x = rx * (canvas.width / rect.width);
-        const y = ry * (canvas.height / rect.height);
-        return { x, y, cx: ev.clientX, cy: ev.clientY };
-      };
-
-      const snapVectorPoint = (start, end) => {
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 0.001) return end;
-        if (!vectorSnapDeg || vectorSnapDeg <= 0) return end;
-        const step = (vectorSnapDeg * Math.PI) / 180;
-        const angle = Math.atan2(dy, dx);
-        const snapped = Math.round(angle / step) * step;
-        return { x: start.x + Math.cos(snapped) * dist, y: start.y + Math.sin(snapped) * dist };
-      };
-
-      const updateMagnifier = (c) => {
-        const half = MAG_SIZE / 2;
-        const safeX = Math.min(window.innerWidth - half - 8, Math.max(half + 8, c.cx + 85));
-        const safeY = Math.min(window.innerHeight - half - 8, Math.max(half + 8, c.cy - 95));
-        setMag({
-          show: true,
-          x: safeX,
-          y: safeY,
-          sx: c.x,
-          sy: c.y,
-        });
-      };
-
-      const cycleActiveColor = (direction = 1) => {
-        const currentColorIndex = COLORS.indexOf(activeColor);
-        const safeIndex = currentColorIndex >= 0 ? currentColorIndex : 0;
-        const nextIndex = (safeIndex + direction + COLORS.length) % COLORS.length;
-        setActiveColor(COLORS[nextIndex]);
-      };
-
-      const handleStart = (e) => {
-        if (!imagemArea) return;
-        if (e.touches) e.preventDefault();
-        const c = getCoords(e);
-        if (drawMode === 'pan') { setIsPanning(true); setLastPoint({ x: c.cx, y: c.cy }); return; }
-
-        if (drawMode === 'vector') {
-          if (!vectorAnchor) {
-            const anchor = { x: c.x, y: c.y };
-            setVectorAnchor(anchor);
-            setCurrentPath({ type: 'vector', color: activeColor, points: [anchor, anchor] });
-            updateMagnifier(c);
-            return;
-          }
-
-          const snapped = snapVectorPoint(vectorAnchor, { x: c.x, y: c.y });
-          setIsDrawing(true);
-          setCurrentPath({ type: 'vector', color: activeColor, points: [vectorAnchor, snapped] });
-          updateMagnifier(c);
-          return;
-        }
-
-        setIsDrawing(true);
-        setCurrentPath({ type: drawMode, color: activeColor, points: [{ x: c.x, y: c.y }] });
-        updateMagnifier(c);
-      };
-
-      const handleMove = (e) => {
-        const c = getCoords(e);
-        if (isPanning) {
-          setPan(p => ({ x: p.x + (c.cx - lastPoint.x)/zoom, y: p.y + (c.cy - lastPoint.y)/zoom }));
-          setLastPoint({ x: c.cx, y: c.cy }); return;
-        }
-        if (drawMode === 'vector' && vectorAnchor && isDrawing) {
-          if (e.touches) e.preventDefault();
-          const snapped = snapVectorPoint(vectorAnchor, { x: c.x, y: c.y });
-          setCurrentPath({ type: 'vector', color: activeColor, points: [vectorAnchor, snapped] });
-          updateMagnifier(c);
-          return;
-        }
-        if (!isDrawing) return;
-        setCurrentPath(p => {
-          if (drawMode === 'line') return { ...p, points: [p.points[0], { x: c.x, y: c.y }] };
-          return { ...p, points: [...p.points, { x: c.x, y: c.y }] };
-        });
-        updateMagnifier(c);
-      };
-
-      const handleEnd = () => {
-        if (drawMode === 'vector') {
-          if (isDrawing && currentPath && currentPath.points.length > 1) {
-            const [a, b] = currentPath.points;
-            if (Math.hypot(b.x - a.x, b.y - a.y) > 1) {
-              setPaths(prev => [...prev, currentPath]);
-            }
-            setVectorAnchor(null);
-            setCurrentPath(null);
-            setIsDrawing(false);
-          }
-          setIsPanning(false);
-          setMag(m => ({ ...m, show: false }));
-          return;
-        }
-        if (isDrawing && currentPath) setPaths(prev => [...prev, currentPath]);
-        setIsDrawing(false); setIsPanning(false); setCurrentPath(null); setMag(m => ({ ...m, show: false }));
-      };
+      const mapUrl = useMemo(() => {
+        if (!cleanCoordinates) return "";
+        return `https://maps.google.com/maps?q=${encodeURIComponent(cleanCoordinates)}&t=m&z=17&output=embed&iwloc=near`;
+      }, [cleanCoordinates]);
 
       useEffect(() => {
-        if (!isFullscreen) return;
-        const onKeyDown = (ev) => {
-          const tag = (ev.target?.tagName || "").toLowerCase();
-          if (tag === "input" || tag === "textarea" || tag === "select") return;
+        if (lastMapCoordsRef.current === null) {
+          lastMapCoordsRef.current = cleanCoordinates;
+          if (!cleanCoordinates) setMapMarkupEnabled(false);
+          return;
+        }
+        if (cleanCoordinates !== lastMapCoordsRef.current) {
+          lastMapCoordsRef.current = cleanCoordinates;
+          setMapMarkupPaths([]);
+          setCurrentMapMarkupPath(null);
+          setIsMapMarkupDrawing(false);
+        }
+        if (!cleanCoordinates) setMapMarkupEnabled(false);
+      }, [cleanCoordinates]);
 
-          const key = (ev.key || "").toLowerCase();
-          if ((ev.ctrlKey || ev.metaKey) && key === "z") {
-            ev.preventDefault();
-            if (vectorAnchor) {
-              setVectorAnchor(null);
-              setCurrentPath(null);
-              setIsDrawing(false);
-              return;
-            }
-            setPaths((prev) => prev.slice(0, -1));
-            return;
-          }
-          if (key === "c") {
-            ev.preventDefault();
-            cycleActiveColor(ev.shiftKey ? -1 : 1);
-          }
+      const visibleMapMarkupPaths = useMemo(
+        () => (currentMapMarkupPath ? [...mapMarkupPaths, currentMapMarkupPath] : mapMarkupPaths),
+        [mapMarkupPaths, currentMapMarkupPath]
+      );
+
+      const mapMarkupStyle = useMemo(() => {
+        const lineScale = Math.max(0.5, Math.min(3, mapMarkupLineWidth || 1));
+        const areaOpacity = Math.max(0.05, Math.min(0.5, mapMarkupAreaOpacity || 0.18));
+        const mapHeight = Math.max(6, Math.min(16, plantaPdfSize || 10));
+        const mapWidth = Math.max(8, Math.min(19, plantaPdfWidth || 16));
+        return {
+          areaStroke: (0.75 * lineScale).toFixed(2),
+          lineStroke: (0.9 * lineScale).toFixed(2),
+          areaOpacity: areaOpacity.toFixed(2),
+          mapWidth: `${mapWidth}cm`,
+          mapAspect: `${mapWidth} / ${mapHeight}`,
         };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-      }, [isFullscreen, vectorAnchor, cycleActiveColor]);
+      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, plantaPdfSize, plantaPdfWidth]);
 
-      useEffect(() => {
-        if (drawMode !== "vector" && vectorAnchor) {
-          setVectorAnchor(null);
-          setCurrentPath(null);
-          setIsDrawing(false);
-          setMag(m => ({ ...m, show: false }));
+      const buildMapMarkupPath = (points, closePath = false) => {
+        if (!points?.length) return "";
+        const [first, ...rest] = points;
+        const line = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
+        rest.forEach((point) => line.push(`L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`));
+        if (closePath && points.length > 2) line.push("Z");
+        return line.join(" ");
+      };
+
+      // Os pontos ficam em porcentagem do mapa para não distorcer quando o PDF redimensiona o relatório.
+      const getMapMarkupPoint = (event) => {
+        const svg = mapMarkupSvgRef.current;
+        if (!svg) return { x: 0, y: 0 };
+        const rect = svg.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+        return {
+          x: Math.max(0, Math.min(100, x)),
+          y: Math.max(0, Math.min(100, y)),
+        };
+      };
+
+      const finishMapMarkupPath = () => {
+        if (!isMapMarkupDrawing || !currentMapMarkupPath) return;
+        const points = currentMapMarkupPath.points || [];
+        const lineLength = points.length > 1 ? Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y) : 0;
+        const validPath =
+          currentMapMarkupPath.type === "line"
+            ? lineLength > 0.5
+            : currentMapMarkupPath.type === "area" || currentMapMarkupPath.type === "polygon"
+              ? points.length > 2
+              : points.length > 1;
+        if (validPath) setMapMarkupPaths((prev) => [...prev, currentMapMarkupPath]);
+        setCurrentMapMarkupPath(null);
+        setIsMapMarkupDrawing(false);
+      };
+
+      const handleMapMarkupStart = (event) => {
+        if (!mapMarkupEnabled || !mapUrl) return;
+        event.preventDefault();
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
+        const point = getMapMarkupPoint(event);
+        if (mapMarkupMode === "polygon") {
+          setCurrentMapMarkupPath((prev) => {
+            if (!prev || prev.type !== "polygon") {
+              return {
+                id: crypto?.randomUUID?.() || generateId(),
+                type: "polygon",
+                color: mapMarkupColor,
+                points: [point],
+              };
+            }
+            return { ...prev, points: [...prev.points, point] };
+          });
+          setIsMapMarkupDrawing(true);
+          return;
         }
-      }, [drawMode, vectorAnchor]);
+        const points = mapMarkupMode === "line" ? [point, point] : [point];
+        setCurrentMapMarkupPath({
+          id: crypto?.randomUUID?.() || generateId(),
+          type: mapMarkupMode,
+          color: mapMarkupColor,
+          points,
+        });
+        setIsMapMarkupDrawing(true);
+      };
 
-      const vectorDraftInfo = useMemo(() => {
-        if (!currentPath || currentPath.type !== "vector" || currentPath.points.length < 2) return null;
-        const [start, end] = currentPath.points;
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const distance = Math.hypot(dx, dy);
-        if (!distance) return null;
-        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        const angleNorm = ((angle % 360) + 360) % 360;
-        return { distance: Math.round(distance), angle: angleNorm.toFixed(1) };
-      }, [currentPath]);
+      const handleMapMarkupMove = (event) => {
+        if (!mapMarkupEnabled || !isMapMarkupDrawing || !currentMapMarkupPath) return;
+        if (currentMapMarkupPath.type === "polygon") return;
+        event.preventDefault();
+        const point = getMapMarkupPoint(event);
+        setCurrentMapMarkupPath((prev) => {
+          if (!prev) return prev;
+          if (prev.type === "line") return { ...prev, points: [prev.points[0], point] };
+          return { ...prev, points: [...prev.points, point] };
+        });
+      };
 
-      useEffect(() => {
-        if (!mag.show) return;
-        const sourceCanvas = canvasRef.current;
-        const lensCanvas = magnifierCanvasRef.current;
-        if (!sourceCanvas || !lensCanvas) return;
-        const ctx = lensCanvas.getContext("2d");
-        if (!ctx) return;
+      const handleMapMarkupEnd = (event) => {
+        try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+        if (currentMapMarkupPath?.type === "polygon") return;
+        finishMapMarkupPath();
+      };
 
-        const srcSize = MAG_SIZE / MAG_ZOOM;
-        const sx = Math.max(0, Math.min(sourceCanvas.width - srcSize, mag.sx - srcSize / 2));
-        const sy = Math.max(0, Math.min(sourceCanvas.height - srcSize, mag.sy - srcSize / 2));
+      const cancelCurrentMapMarkupPath = () => {
+        setCurrentMapMarkupPath(null);
+        setIsMapMarkupDrawing(false);
+      };
 
-        ctx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2 - 2, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(sourceCanvas, sx, sy, srcSize, srcSize, 0, 0, MAG_SIZE, MAG_SIZE);
-        ctx.restore();
+      const selectMapMarkupMode = (mode) => {
+        if (currentMapMarkupPath?.type === "polygon" && currentMapMarkupPath.points?.length > 2) {
+          finishMapMarkupPath();
+        } else if (currentMapMarkupPath?.type === "polygon") {
+          cancelCurrentMapMarkupPath();
+        }
+        setMapMarkupMode(mode);
+      };
 
-        ctx.strokeStyle = "rgba(99,102,241,0.95)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(MAG_SIZE / 2, 10);
-        ctx.lineTo(MAG_SIZE / 2, MAG_SIZE - 10);
-        ctx.moveTo(10, MAG_SIZE / 2);
-        ctx.lineTo(MAG_SIZE - 10, MAG_SIZE / 2);
-        ctx.stroke();
-      }, [mag, currentPath, paths, drawMode]);
+      const clearMapMarkup = () => {
+        setMapMarkupPaths([]);
+        setCurrentMapMarkupPath(null);
+        setIsMapMarkupDrawing(false);
+      };
+
+      // Funções de renderização evitam remontar o iframe do mapa a cada ponto desenhado.
+      // Assim, só o SVG da demarcação muda enquanto o Google Maps permanece estável.
+      const renderMapMarkupLayer = (interactive = false) => (
+        <svg
+          ref={interactive ? mapMarkupSvgRef : null}
+          className={`map-markup-layer ${interactive && mapMarkupEnabled ? "map-markup-layer--active" : ""}`}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          onPointerDown={interactive ? handleMapMarkupStart : undefined}
+          onPointerMove={interactive ? handleMapMarkupMove : undefined}
+          onPointerUp={interactive ? handleMapMarkupEnd : undefined}
+          onPointerCancel={interactive ? handleMapMarkupEnd : undefined}
+          onPointerLeave={interactive ? handleMapMarkupEnd : undefined}
+        >
+          {visibleMapMarkupPaths.map((path) => {
+            const isPolygon = path.type === "polygon";
+            const isArea = path.type === "area" || isPolygon;
+            const canFill = isArea && path.points.length > 2;
+            return (
+              <React.Fragment key={path.id}>
+                <path
+                  d={buildMapMarkupPath(path.points, canFill)}
+                  fill={canFill ? path.color : "none"}
+                  fillOpacity={canFill ? mapMarkupStyle.areaOpacity : "0"}
+                  stroke={path.color}
+                  strokeWidth={isArea ? mapMarkupStyle.areaStroke : mapMarkupStyle.lineStroke}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {isPolygon && path.points.map((point, index) => (
+                  <circle
+                    key={`${path.id}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="1.2"
+                    fill="#ffffff"
+                    stroke={path.color}
+                    strokeWidth="0.45"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+              </React.Fragment>
+            );
+          })}
+        </svg>
+      );
+
+      const renderMapFrame = (interactive = false) => (
+        <div
+          className="w-full border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner mx-auto"
+          style={{ width: mapMarkupStyle.mapWidth, maxWidth: "100%", aspectRatio: mapMarkupStyle.mapAspect }}
+        >
+          <iframe
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            src={mapUrl}
+            title="Mapa da calçada"
+            className={interactive ? "pointer-events-none" : ""}
+          ></iframe>
+          {(interactive || visibleMapMarkupPaths.length > 0) && (
+            renderMapMarkupLayer(interactive)
+          )}
+          {interactive && mapMarkupEnabled && (
+            <div className="map-markup-hint no-print-area">Desenho ativo</div>
+          )}
+        </div>
+      );
 
       // --- LOGICA DE IMPRESSÃƒO E WHATSAPP ---
       const handlePrint = async () => {
@@ -870,7 +791,7 @@
         const processo = processNumber;
         const local = reportData.local || "";
         const data = formatDateIso(reportData.dataIso || "");
-        const coords = "";
+        const coords = cleanCoordinates;
         const dataRow = `${assunto}\t${categoria}\t${processo}\t${local}\t${data}\t${coords}`;
 
         const historyEntry = {
@@ -1005,130 +926,138 @@
         setPhotos(next);
       };
 
-      const handleRemoveImagem = () => {
-        setImagemArea(null);
-        setDrawnImage(null);
-        bgRef.current = null;
-        setPaths([]);
-        setCurrentPath(null);
-        setVectorAnchor(null);
-        setIsDrawing(false);
-        setMag(m => ({ ...m, show: false }));
-        setZoom(1);
-        setPan({ x: 0, y: 0 });
-        try { localStorage.removeItem("calcadas_img_v7"); } catch (e) {}
-      };
-
       const photosGridClass = photosPerRow === 1 ? "grid-cols-1" : photosPerRow === 2 ? "grid-cols-2" : "grid-cols-3";
 
-      // Ferramentas de DemarcaÃ§Ã£o
+      // Ferramentas de demarcação no mapa.
       const Toolset = () => (
-        <div className="flex flex-col gap-2 w-full">
-          <div className="flex gap-1 bg-slate-900 p-1.5 rounded-xl shadow-inner">
-            {['line', 'freehand', 'vector', 'pan'].map(m => (
-              <button key={m} onClick={() => setDrawMode(m)} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase flex flex-col items-center justify-center gap-1 transition-all ${drawMode === m ? 'bg-indigo-600 text-white shadow-lg scale-105' : 'text-slate-500'}`}>
-                {m === 'line' ? <PenLine size={16}/> : m === 'freehand' ? <MousePointer2 size={16}/> : m === 'vector' ? <Crosshair size={16}/> : <Move size={16}/>}
-                <span>{m === 'line' ? 'Reta' : m === 'freehand' ? 'Livre' : m === 'vector' ? 'Vetor' : 'Mover'}</span>
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                if (vectorAnchor) {
-                  setVectorAnchor(null);
-                  setCurrentPath(null);
-                  setIsDrawing(false);
-                  setMag(m => ({ ...m, show: false }));
-                  return;
-                }
-                setPaths(paths.slice(0, -1));
-              }}
-              className="px-3 text-slate-300 active:text-white"
-            >
-              <Undo size={18}/>
-            </button>
-            <button onClick={() => cycleActiveColor(1)} className="px-3 bg-white/10 text-white rounded-lg border border-white/20 flex items-center gap-1" title="Trocar cor (tecla C)">
-              <Palette size={16}/>
-              <span className="w-3 h-3 rounded-full border border-white/60" style={{ backgroundColor: activeColor }} />
-            </button>
-            <button onClick={() => setIsFullscreen(!isFullscreen)} className="px-3 bg-indigo-500 text-white rounded-lg">{isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
-            <button onClick={handleRemoveImagem} className="px-3 bg-red-500 text-white rounded-lg" title="Remover imagem">
-              <Trash2 size={16}/>
-            </button>
-          </div>
+        <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3">
+          <label className={`flex items-center justify-between gap-3 p-3 rounded-xl border bg-white ${!mapUrl ? "opacity-60" : ""}`}>
+            <div>
+              <div className="text-[10px] font-black text-slate-700 uppercase">Ativar desenho</div>
+              <div className="text-[10px] text-slate-500">
+                {mapUrl ? "Desenhe no mapa da pré-visualização do relatório." : "Preencha as coordenadas para liberar o mapa."}
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="w-5 h-5"
+              checked={mapMarkupEnabled}
+              onChange={(e) => setMapMarkupEnabled(e.target.checked)}
+              disabled={!mapUrl || isPrinting}
+            />
+          </label>
 
-          {drawMode === 'vector' && (
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-2 space-y-2">
-              <div className="flex gap-2 items-center justify-between">
-                <span className="text-[10px] font-black text-indigo-700 uppercase">Snap angular:</span>
-                <div className="flex gap-1">
-                  {[0, 15, 30, 45].map(step => (
-                    <button
-                      key={step}
-                      type="button"
-                      onClick={() => setVectorSnapDeg(step)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-black border ${vectorSnapDeg === step ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-indigo-600 border-indigo-200'}`}
-                    >
-                      {step === 0 ? 'Livre' : `${step} deg`}
-                    </button>
-                  ))}
-                </div>
+          {(mapMarkupEnabled || mapMarkupPaths.length > 0) && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { id: "area", label: "Área", icon: <MousePointer2 size={13} /> },
+                  { id: "polygon", label: "Pontos", icon: <MousePointer2 size={13} /> },
+                  { id: "freehand", label: "Livre", icon: <PenLine size={13} /> },
+                  { id: "line", label: "Reta", icon: <PenLine size={13} /> },
+                ].map((tool) => (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    onClick={() => selectMapMarkupMode(tool.id)}
+                    disabled={!mapMarkupEnabled || isPrinting}
+                    className={`py-2 rounded-lg border text-[9px] font-black uppercase flex items-center justify-center gap-1 ${
+                      mapMarkupMode === tool.id ? "bg-[#004587] text-white border-[#004587]" : "bg-white text-slate-500 hover:bg-slate-50"
+                    } disabled:opacity-50`}
+                  >
+                    {tool.icon}
+                    {tool.label}
+                  </button>
+                ))}
               </div>
-              <div className="text-[10px] font-bold text-indigo-700">
-                Pontos so sao fixados ao soltar. Cada novo ponto conecta em sequencia.
-              </div>
-              {vectorDraftInfo && (
-                <div className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
-                  Vetor: {vectorDraftInfo.distance}px - Angulo {vectorDraftInfo.angle} deg
+
+              {currentMapMarkupPath?.type === "polygon" && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={finishMapMarkupPath}
+                    disabled={(currentMapMarkupPath.points || []).length < 3 || isPrinting}
+                    className="py-2 rounded-lg border bg-emerald-600 text-white text-[9px] font-black uppercase disabled:opacity-40"
+                  >
+                    Concluir área
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelCurrentMapMarkupPath}
+                    disabled={isPrinting}
+                    className="py-2 rounded-lg border bg-white text-slate-600 text-[9px] font-black uppercase disabled:opacity-40"
+                  >
+                    Cancelar pontos
+                  </button>
                 </div>
               )}
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1">
+                  <Palette size={13} className="text-slate-500" />
+                  {COLORS.slice(0, 5).map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setMapMarkupColor(color)}
+                      disabled={!mapMarkupEnabled || isPrinting}
+                      className={`w-6 h-6 rounded-full border-2 ${mapMarkupColor === color ? "border-slate-900 scale-110" : "border-white"} shadow-sm disabled:opacity-50`}
+                      style={{ backgroundColor: color }}
+                      title="Cor da demarcação"
+                    />
+                  ))}
+                </div>
+
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setMapMarkupPaths((prev) => prev.slice(0, -1))}
+                    disabled={!mapMarkupPaths.length || isPrinting}
+                    className="px-2 py-1.5 rounded-lg border bg-white text-slate-600 disabled:opacity-40"
+                    title="Desfazer"
+                  >
+                    <Undo size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearMapMarkup}
+                    disabled={(!mapMarkupPaths.length && !currentMapMarkupPath) || isPrinting}
+                    className="px-2 py-1.5 rounded-lg border bg-white text-red-500 disabled:opacity-40"
+                    title="Limpar demarcações"
+                  >
+                    <Eraser size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMapMarkupSettingsOpen(true)}
+                disabled={isPrinting}
+                className="w-full py-2 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                <Settings size={13} />
+                Configurações do mapa
+              </button>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="w-full py-2 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50"
-          >
-            Configurações
-          </button>
-          
-          <div className={`relative border-2 border-indigo-400 rounded-2xl overflow-hidden bg-slate-900 flex items-center justify-center canvas-container ${isFullscreen ? 'flex-1 h-full' : 'h-[250px] sm:h-[350px]'}`}>
-            <div className="relative inline-block" style={{ transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`, transition: isPanning ? 'none' : 'transform 0.15s ease-out' }}>
-              <img ref={bgImgElRef} src={imagemArea} onLoad={handleBgImageLoad} className="block max-w-none select-none pointer-events-none" alt="Planta" />
-              <canvas ref={canvasRef} onMouseDown={handleStart} onMouseMove={handleMove} onMouseUp={handleEnd} onMouseLeave={handleEnd} onTouchStart={handleStart} onTouchMove={handleMove} onTouchEnd={handleEnd} onTouchCancel={handleEnd} className="absolute inset-0 bg-transparent" />
-            </div>
-            <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-              <button onClick={() => setZoom(z => Math.min(z + 0.5, 5))} className="w-12 h-12 bg-white/10 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20 shadow-xl"><ZoomIn size={24}/></button>
-              <button onClick={() => setZoom(z => Math.max(z - 0.5, 0.5))} className="w-12 h-12 bg-white/10 backdrop-blur-md text-white rounded-full flex items-center justify-center border border-white/20 shadow-xl"><ZoomOut size={24}/></button>
-              <button onClick={() => {setZoom(1); setPan({x:0,y:0});}} className="w-12 h-12 bg-indigo-600 text-white rounded-full text-[11px] font-black shadow-lg border-2 border-white/20">1:1</button>
-            </div>
-          </div>
         </div>
       );
 
       return (
         <div className="min-h-screen bg-slate-100 app-bg flex flex-col md:flex-row p-2 sm:p-4 gap-4">
-          
-          {mag.show && (
-            <div className="magnifier-window fixed rounded-full overflow-hidden" style={{ left: mag.x - (MAG_SIZE / 2), top: mag.y - (MAG_SIZE / 2), width: MAG_SIZE, height: MAG_SIZE }}>
-              <canvas ref={magnifierCanvasRef} width={MAG_SIZE} height={MAG_SIZE} />
-            </div>
-          )}
 
-          {isFullscreen && (
-            <div className="fixed inset-0 z-[9998] bg-black flex flex-col p-2 no-print-area">
-              <Toolset />
-            </div>
-          )}
-
-          {showSettings && (
+          {mapMarkupSettingsOpen && (
             <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 no-print-area">
               <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 p-4 shadow-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-black uppercase text-[#004587]">Configurações</div>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <div className="text-[11px] font-black uppercase text-[#004587]">Configurações do mapa</div>
+                    <div className="text-[10px] text-slate-500">Ajustes usados na pré-visualização e no PDF.</div>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setShowSettings(false)}
+                    onClick={() => setMapMarkupSettingsOpen(false)}
                     className="px-2 py-1 text-[10px] font-black uppercase text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
                   >
                     Fechar
@@ -1138,39 +1067,39 @@
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
-                      <span>Grosura da linha</span>
-                      <span>{lineWidthScale.toFixed(1)}x</span>
+                      <span>Largura da linha</span>
+                      <span>{mapMarkupLineWidth.toFixed(1)}x</span>
                     </div>
                     <input
                       type="range"
                       min="0.5"
                       max="3"
                       step="0.1"
-                      value={lineWidthScale}
-                      onChange={(e) => setLineWidthScale(parseFloat(e.target.value))}
+                      value={mapMarkupLineWidth}
+                      onChange={(e) => setMapMarkupLineWidth(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
-                      <span>Tamanho dos pontos</span>
-                      <span>{pointSizeScale.toFixed(1)}x</span>
+                      <span>Opacidade da área</span>
+                      <span>{Math.round(mapMarkupAreaOpacity * 100)}%</span>
                     </div>
                     <input
                       type="range"
-                      min="0.5"
-                      max="3"
-                      step="0.1"
-                      value={pointSizeScale}
-                      onChange={(e) => setPointSizeScale(parseFloat(e.target.value))}
+                      min="0.05"
+                      max="0.5"
+                      step="0.01"
+                      value={mapMarkupAreaOpacity}
+                      onChange={(e) => setMapMarkupAreaOpacity(parseFloat(e.target.value))}
                       className="w-full"
                     />
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
-                      <span>Tamanho da planta no PDF</span>
+                      <span>Altura do mapa no PDF</span>
                       <span>{plantaPdfSize} cm</span>
                     </div>
                     <input
@@ -1186,7 +1115,7 @@
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
-                      <span>Largura da planta no PDF</span>
+                      <span>Largura do mapa no PDF</span>
                       <span>{plantaPdfWidth} cm</span>
                     </div>
                     <input
@@ -1223,6 +1152,16 @@
                   <input type="text" placeholder="Local" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold" value={reportData.local} onChange={e => setReportData({...reportData, local: e.target.value})} />
                 </div>
                 <input type="text" placeholder="Nº do Processo" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.numeroProcesso} onChange={e => setReportData({...reportData, numeroProcesso: e.target.value})} />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Coordenadas (Lat, Long do Google Maps)"
+                    className="w-full p-2.5 pl-9 bg-blue-50 border border-blue-100 rounded-xl text-xs font-mono"
+                    value={reportData.coordenadas}
+                    onChange={e => setReportData({...reportData, coordenadas: e.target.value})}
+                  />
+                  <LocateFixed size={14} className="absolute left-3 top-3 text-[#004587]" />
+                </div>
                 <input type="text" placeholder="Telefone" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs" value={reportData.telefone} onChange={e => setReportData({...reportData, telefone: e.target.value})} />
                 <textarea
                   rows="3"
@@ -1265,25 +1204,8 @@
               </section>
 
               <section className="space-y-3">
-                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><PenTool size={14}/> 3. Planta</h2>
-                {!imagemArea ? (
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-4 border-dashed border-indigo-100 rounded-3xl cursor-pointer bg-slate-50 hover:bg-indigo-50 transition-all">
-                    <Plus size={32} className="text-indigo-200 mb-2"/>
-                    <span className="text-[10px] font-black text-indigo-400 uppercase">Carregar Imagem da Planta</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={async e => {
-                      const base64 = await resizeImageToBase64(e.target.files[0]);
-                      setImagemArea(base64);
-                    }} />
-                  </label>
-                ) : (
-                  isFullscreen ? (
-                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 text-[10px] font-bold text-indigo-700">
-                      Tela cheia ativa. As ferramentas estao na tela cheia.
-                    </div>
-                  ) : (
-                    <Toolset />
-                  )
-                )}
+                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><PenTool size={14}/> 3. Mapa e demarcação</h2>
+                <Toolset />
               </section>
 
               <section className="space-y-3">
@@ -1368,10 +1290,10 @@
           </div>
 
           {/* PREVIEW PDF */}
-          <div className="flex-1 bg-white shadow-2xl rounded-3xl border overflow-hidden hidden md:flex flex-col print:shadow-none print:border-none print:rounded-none print-flow print-overflow-visible report-light">
+          <div className="flex-1 bg-white shadow-2xl rounded-3xl border overflow-hidden flex flex-col print:shadow-none print:border-none print:rounded-none print-flow print-overflow-visible report-light">
              <div className="bg-slate-800 p-2 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest print:hidden">Pré-visualização do Documento</div>
-             <div className="flex-1 overflow-y-auto p-4 flex justify-center bg-slate-200 print:p-0 print:bg-white print-flow print-overflow-visible report-light">
-                <div ref={reportRef} className="bg-white w-[700px] min-h-[990px] shadow-2xl flex flex-col print-area print-area--flow print:shadow-none print:min-h-0 print:block print:h-auto report-root report-light">
+             <div className="flex-1 overflow-y-auto overflow-x-auto p-4 flex justify-start md:justify-center bg-slate-200 print:p-0 print:bg-white print-flow print-overflow-visible report-light">
+                <div ref={reportRef} className="bg-white w-[700px] min-w-[700px] min-h-[990px] shadow-2xl flex flex-col print-area print-area--flow print:shadow-none print:min-h-0 print:block print:h-auto report-root report-light">
                    <div className="report-cover-page" data-pdf-cover="true">
                       <div className="report-cover-brand">
                         <img src={imgBrasãoURL} onError={(e) => { if (e.currentTarget.src !== imgBrasãoURLFallback) e.currentTarget.src = imgBrasãoURLFallback; }} className="report-cover-logo" alt="Brasão" />
@@ -1418,6 +1340,9 @@
                              <span className="text-[8px] font-bold text-slate-400 uppercase">Localização</span>
                              <p className="text-xs font-black text-slate-800">{reportData.local}</p>
                              <p className="text-[9px] font-bold text-slate-600 mt-1">Data de criacao: {formatDateSimple(reportCreatedAt)}</p>
+                             {cleanCoordinates && (
+                               <p className="text-[8px] font-bold text-slate-500 mt-1 font-mono">Coords: {cleanCoordinates}</p>
+                             )}
                           </div>
                           <div className="border-l-4 border-slate-200 pl-4 py-1">
                              <span className="text-[8px] font-bold text-slate-400 uppercase">Responsável</span>
@@ -1458,26 +1383,23 @@
                          </div>
                       </div>
 
-                      <div className={`mt-6 flex justify-center avoid-break ${photos.length > 0 ? "print-break-after" : ""}`}>
-                        <div
-                          className="bg-slate-50 p-4 rounded-2xl border flex flex-col gap-2"
-                          style={{ width: `${plantaPdfWidth}cm`, maxWidth: "100%" }}
-                        >
-                           <span className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Demarcação em Planta</span>
-                           {drawnImage ? (
-                             <img
-                               src={drawnImage}
-                               className="block mx-auto rounded-lg"
-                               style={{ height: `${plantaPdfSize}cm`, width: "100%", objectFit: "contain" }}
-                               alt="Planta"
-                             />
+                      <div className="mt-6 flex justify-center avoid-break">
+                        <div className="bg-slate-50 p-4 rounded-2xl border flex flex-col gap-2 max-w-full">
+                           <span className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-2">Demarcação no Mapa</span>
+                           {mapUrl ? (
+                             renderMapFrame(!isPrinting)
                            ) : (
-                             <div className="h-40 bg-slate-100 rounded-lg animate-pulse" />
+                             <div
+                               className="w-full max-w-full bg-slate-100 rounded-lg flex items-center justify-center text-[9px] font-black text-slate-400 uppercase"
+                               style={{ width: mapMarkupStyle.mapWidth, maxWidth: "100%", aspectRatio: mapMarkupStyle.mapAspect }}
+                             >
+                               Informe as coordenadas
+                             </div>
                            )}
                         </div>
                       </div>
                       {photos.length > 0 && (
-                        <div className="mt-6 references-section print-break-before">
+                        <div className="mt-6 references-section">
                           <div className="text-[9px] font-black text-[#004587] uppercase border-b pb-2 mb-3">Referências</div>
                           {reportData.descricaoImagens && (
                             <div className="text-[10px] font-medium text-slate-700 mb-3 whitespace-pre-wrap">

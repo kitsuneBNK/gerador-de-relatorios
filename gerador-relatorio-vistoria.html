@@ -518,6 +518,9 @@
       const [mapHeightCm, setMapHeightCm] = useState(() =>
         readNumberPreference("dirob_map_height_cm_v1", 12)
       );
+      const [mapWidthCm, setMapWidthCm] = useState(() =>
+        readNumberPreference("dirob_map_width_cm_v1", 16)
+      );
       const [mapMarkupPaths, setMapMarkupPaths] = useState([]);
       const [currentMapMarkupPath, setCurrentMapMarkupPath] = useState(null);
       const [isMapMarkupDrawing, setIsMapMarkupDrawing] = useState(false);
@@ -602,8 +605,9 @@
           localStorage.setItem("dirob_map_markup_line_width_v1", String(mapMarkupLineWidth));
           localStorage.setItem("dirob_map_markup_area_opacity_v1", String(mapMarkupAreaOpacity));
           localStorage.setItem("dirob_map_height_cm_v1", String(mapHeightCm));
+          localStorage.setItem("dirob_map_width_cm_v1", String(mapWidthCm));
         } catch {}
-      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm]);
+      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm, mapWidthCm]);
 
       const visibleMapMarkupPaths = useMemo(
         () => (currentMapMarkupPath ? [...mapMarkupPaths, currentMapMarkupPath] : mapMarkupPaths),
@@ -614,13 +618,15 @@
         const lineScale = Math.max(0.5, Math.min(3, mapMarkupLineWidth || 1));
         const areaOpacity = Math.max(0.05, Math.min(0.5, mapMarkupAreaOpacity || 0.18));
         const mapHeight = Math.max(8, Math.min(18, mapHeightCm || 12));
+        const mapWidth = Math.max(10, Math.min(19, mapWidthCm || 16));
         return {
           areaStroke: (0.75 * lineScale).toFixed(2),
           lineStroke: (0.9 * lineScale).toFixed(2),
           areaOpacity: areaOpacity.toFixed(2),
-          mapHeight: `${mapHeight}cm`,
+          mapWidth: `${mapWidth}cm`,
+          mapAspect: `${mapWidth} / ${mapHeight}`,
         };
-      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm]);
+      }, [mapMarkupLineWidth, mapMarkupAreaOpacity, mapHeightCm, mapWidthCm]);
 
       const buildMapMarkupPath = (points, closePath = false) => {
         if (!points?.length) return "";
@@ -658,6 +664,21 @@
         event.preventDefault();
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch {}
         const point = getMapMarkupPoint(event);
+        if (mapMarkupMode === "polygon") {
+          setCurrentMapMarkupPath((prev) => {
+            if (!prev || prev.type !== "polygon") {
+              return {
+                id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+                type: "polygon",
+                color: mapMarkupColor,
+                points: [point],
+              };
+            }
+            return { ...prev, points: [...prev.points, point] };
+          });
+          setIsMapMarkupDrawing(true);
+          return;
+        }
         const points = mapMarkupMode === "line" ? [point, point] : [point];
         setCurrentMapMarkupPath({
           id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
@@ -670,6 +691,7 @@
 
       const handleMapMarkupMove = (event) => {
         if (!mapMarkupEnabled || !isMapMarkupDrawing || !currentMapMarkupPath) return;
+        if (currentMapMarkupPath.type === "polygon") return;
         event.preventDefault();
         const point = getMapMarkupPoint(event);
         setCurrentMapMarkupPath((prev) => {
@@ -677,6 +699,26 @@
           if (prev.type === "line") return { ...prev, points: [prev.points[0], point] };
           return { ...prev, points: [...prev.points, point] };
         });
+      };
+
+      const handleMapMarkupEnd = (event) => {
+        try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+        if (currentMapMarkupPath?.type === "polygon") return;
+        finishMapMarkupPath();
+      };
+
+      const cancelCurrentMapMarkupPath = () => {
+        setCurrentMapMarkupPath(null);
+        setIsMapMarkupDrawing(false);
+      };
+
+      const selectMapMarkupMode = (mode) => {
+        if (currentMapMarkupPath?.type === "polygon" && currentMapMarkupPath.points?.length > 2) {
+          finishMapMarkupPath();
+        } else if (currentMapMarkupPath?.type === "polygon") {
+          cancelCurrentMapMarkupPath();
+        }
+        setMapMarkupMode(mode);
       };
 
       // Preset AUTOMÁTICO por fileira (bem agressivo para PDF leve)
@@ -998,7 +1040,7 @@
                     />
                   </label>
 
-                  <label className="block">
+                  <label className="block border-b border-slate-100 pb-3">
                     <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
                       <span>Altura do mapa</span>
                       <span>{mapHeightCm.toFixed(0)} cm</span>
@@ -1010,6 +1052,22 @@
                       step="1"
                       value={mapHeightCm}
                       onChange={(e) => setMapHeightCm(parseFloat(e.target.value))}
+                      className="w-full mt-2"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-600">
+                      <span>Largura do mapa</span>
+                      <span>{mapWidthCm.toFixed(0)} cm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="19"
+                      step="1"
+                      value={mapWidthCm}
+                      onChange={(e) => setMapWidthCm(parseFloat(e.target.value))}
                       className="w-full mt-2"
                     />
                   </label>
@@ -1159,16 +1217,17 @@
 
                   {(mapMarkupEnabled || mapMarkupPaths.length > 0) && (
                     <div className="mt-3 space-y-3">
-                      <div className="grid grid-cols-3 gap-1.5">
+                      <div className="grid grid-cols-4 gap-1.5">
                         {[
                           { id: "area", label: "Area", icon: <MousePointer2 size={13} /> },
+                          { id: "polygon", label: "Pontos", icon: <MousePointer2 size={13} /> },
                           { id: "freehand", label: "Livre", icon: <PenLine size={13} /> },
                           { id: "line", label: "Reta", icon: <PenLine size={13} /> },
                         ].map((tool) => (
                           <button
                             key={tool.id}
                             type="button"
-                            onClick={() => setMapMarkupMode(tool.id)}
+                            onClick={() => selectMapMarkupMode(tool.id)}
                             disabled={!mapMarkupEnabled || isPrinting}
                             className={`py-2 rounded-lg border text-[9px] font-black uppercase flex items-center justify-center gap-1 ${
                               mapMarkupMode === tool.id ? "bg-[#004587] text-white border-[#004587]" : "bg-white text-slate-500 hover:bg-slate-50"
@@ -1179,6 +1238,27 @@
                           </button>
                         ))}
                       </div>
+
+                      {currentMapMarkupPath?.type === "polygon" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={finishMapMarkupPath}
+                            disabled={(currentMapMarkupPath.points || []).length < 3 || isPrinting}
+                            className="py-2 rounded-lg border bg-emerald-600 text-white text-[9px] font-black uppercase disabled:opacity-40"
+                          >
+                            Concluir área
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelCurrentMapMarkupPath}
+                            disabled={isPrinting}
+                            className="py-2 rounded-lg border bg-white text-slate-600 text-[9px] font-black uppercase disabled:opacity-40"
+                          >
+                            Cancelar pontos
+                          </button>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1">
@@ -1640,7 +1720,10 @@
                       <MapPin size={14}/> 3. Mapa de Referência
                       {mapMarkupPaths.length > 0 && <span className="text-[8px] text-emerald-700 tracking-normal normal-case">com demarcação</span>}
                     </div>
-                    <div className="w-full border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner" style={{ height: mapMarkupStyle.mapHeight }}>
+                    <div
+                      className="w-full border rounded-lg overflow-hidden bg-slate-50 relative shadow-inner mx-auto"
+                      style={{ width: mapMarkupStyle.mapWidth, maxWidth: "100%", aspectRatio: mapMarkupStyle.mapAspect }}
+                    >
                       <iframe
                         width="100%"
                         height="100%"
@@ -1657,24 +1740,39 @@
                           preserveAspectRatio="none"
                           onPointerDown={handleMapMarkupStart}
                           onPointerMove={handleMapMarkupMove}
-                          onPointerUp={finishMapMarkupPath}
-                          onPointerCancel={finishMapMarkupPath}
-                          onPointerLeave={finishMapMarkupPath}
+                          onPointerUp={handleMapMarkupEnd}
+                          onPointerCancel={handleMapMarkupEnd}
+                          onPointerLeave={handleMapMarkupEnd}
                         >
                           {visibleMapMarkupPaths.map((path) => {
-                            const isArea = path.type === "area";
+                            const isPolygon = path.type === "polygon";
+                            const isArea = path.type === "area" || isPolygon;
+                            const canFill = isArea && path.points.length > 2;
                             return (
-                              <path
-                                key={path.id}
-                                d={buildMapMarkupPath(path.points, isArea)}
-                                fill={isArea ? path.color : "none"}
-                                fillOpacity={isArea ? mapMarkupStyle.areaOpacity : "0"}
-                                stroke={path.color}
-                                strokeWidth={isArea ? mapMarkupStyle.areaStroke : mapMarkupStyle.lineStroke}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                vectorEffect="non-scaling-stroke"
-                              />
+                              <React.Fragment key={path.id}>
+                                <path
+                                  d={buildMapMarkupPath(path.points, canFill)}
+                                  fill={canFill ? path.color : "none"}
+                                  fillOpacity={canFill ? mapMarkupStyle.areaOpacity : "0"}
+                                  stroke={path.color}
+                                  strokeWidth={isArea ? mapMarkupStyle.areaStroke : mapMarkupStyle.lineStroke}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                                {isPolygon && path.points.map((point, index) => (
+                                  <circle
+                                    key={`${path.id}-${index}`}
+                                    cx={point.x}
+                                    cy={point.y}
+                                    r="1.2"
+                                    fill="#ffffff"
+                                    stroke={path.color}
+                                    strokeWidth="0.45"
+                                    vectorEffect="non-scaling-stroke"
+                                  />
+                                ))}
+                              </React.Fragment>
                             );
                           })}
                         </svg>
