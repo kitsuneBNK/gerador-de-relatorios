@@ -418,7 +418,7 @@
 
           <label>
             <span class="calendar-label">Assunto</span>
-            <input id="assunto" class="calendar-field" maxlength="140" placeholder="Resumo curto do que aconteceu" required />
+            <input id="assunto" class="calendar-field" maxlength="140" placeholder="Resumo curto do que aconteceu" />
           </label>
 
           <label>
@@ -941,7 +941,7 @@
         <tr data-id="${escapeHtml(record.id)}">
           <td class="whitespace-nowrap font-black text-[#004587]">${formatDateBR(record.data)}</td>
           <td>${escapeHtml(record.local)}</td>
-          <td class="font-bold">${escapeHtml(record.assunto)}</td>
+          <td class="font-bold">${escapeHtml(record.assunto) || "-"}</td>
           <td>${escapeHtml(record.tipo)}</td>
           <td class="no-print-area">
             <div class="row-actions">
@@ -1015,8 +1015,8 @@
       event.preventDefault();
       const payload = buildRecordFromForm();
 
-      if (!payload.data || !payload.local || !payload.assunto || !payload.tipo) {
-        alert("Preencha data, local, assunto e tipo.");
+      if (!payload.data || !payload.local || !payload.tipo) {
+        alert("Preencha data, local e tipo.");
         return;
       }
 
@@ -1049,7 +1049,8 @@
     const deleteRecord = (id) => {
       const record = state.records.find((item) => item.id === id);
       if (!record) return;
-      const confirmed = confirm(`Excluir o registro "${record.assunto}" de ${formatDateBR(record.data)}?`);
+      const title = record.assunto || "sem assunto";
+      const confirmed = confirm(`Excluir o registro "${title}" de ${formatDateBR(record.data)}?`);
       if (!confirmed) return;
 
       state.records = state.records.filter((item) => item.id !== id);
