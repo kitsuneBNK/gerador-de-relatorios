@@ -279,9 +279,58 @@
       background: #f8fafc;
     }
 
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .status-badge--progress {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.28);
+      color: #1d4ed8;
+    }
+
+    .status-badge--waiting {
+      background: rgba(234, 179, 8, 0.14);
+      border-color: rgba(234, 179, 8, 0.32);
+      color: #a16207;
+    }
+
+    .status-badge--done-no-report {
+      background: rgba(100, 116, 139, 0.12);
+      border-color: rgba(100, 116, 139, 0.28);
+      color: #475569;
+    }
+
     .count-list {
       display: grid;
       gap: 8px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .count-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .count-list::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 999px;
+    }
+
+    .count-list::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
     }
 
     .count-line {
@@ -347,6 +396,26 @@
 
     .dark .count-track {
       background: #1e293b;
+    }
+
+    .dark .count-list::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+
+    .dark .count-list::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+
+    .dark .status-badge--progress {
+      color: #bfdbfe;
+    }
+
+    .dark .status-badge--waiting {
+      color: #fde68a;
+    }
+
+    .dark .status-badge--done-no-report {
+      color: #cbd5e1;
     }
 
     @media (max-width: 1100px) {
@@ -447,6 +516,7 @@
               <option value="Recolhimento de Moveis"></option>
               <option value="Reposicao de Tampa"></option>
               <option value="Obra"></option>
+              <option value="Relatorio"></option>
               <option value="Entrega de Areia"></option>
               <option value="Retirada de Entulhos"></option>
               <option value="Apoio"></option>
@@ -479,6 +549,71 @@
             <span class="calendar-stat-label">Tipos filtrados</span>
           </div>
         </div>
+
+        <section class="calendar-panel rounded-2xl p-4 sm:p-5 no-print-area">
+          <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Acompanhamento</p>
+              <h2 class="mt-1 text-lg font-black text-[#004587]">Demandas em aberto</h2>
+            </div>
+            <div class="text-[11px] font-black uppercase tracking-wide text-slate-500">
+              <span id="open-summary">0 em aberto</span>
+            </div>
+          </div>
+
+          <form id="open-form" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+            <label>
+              <span class="calendar-label">Data que chegou</span>
+              <input id="open-data" class="calendar-field" type="date" required />
+            </label>
+            <label class="xl:col-span-2">
+              <span class="calendar-label">Tema</span>
+              <input id="open-tema" class="calendar-field" maxlength="140" placeholder="Ex: Relatorio de vistoria" required />
+            </label>
+            <label class="xl:col-span-2">
+              <span class="calendar-label">Local</span>
+              <input id="open-local" class="calendar-field" maxlength="120" placeholder="Local da demanda" required />
+            </label>
+            <label>
+              <span class="calendar-label">Status</span>
+              <select id="open-status" class="calendar-field" required>
+                <option value="Em progresso">Em progresso</option>
+                <option value="Em espera">Em espera</option>
+                <option value="Concluido sem relatorio">Concluido sem relatorio</option>
+              </select>
+            </label>
+            <label class="md:col-span-2 xl:col-span-4">
+              <span class="calendar-label">Numero de processo</span>
+              <input id="open-processo" class="calendar-field" maxlength="80" placeholder="Ex: 00123-000456/2026-11" required />
+            </label>
+            <div class="md:col-span-2 xl:col-span-2 flex flex-col sm:flex-row gap-2 sm:items-end">
+              <button id="open-submit-label" class="calendar-btn calendar-btn-primary flex-1" type="submit">
+                <i data-lucide="save" width="16" height="16"></i>
+                Salvar aberta
+              </button>
+              <button id="open-reset" class="calendar-btn calendar-btn-ghost flex-1" type="button">
+                <i data-lucide="rotate-ccw" width="15" height="15"></i>
+                Nova
+              </button>
+            </div>
+          </form>
+
+          <div class="calendar-table-wrap mt-4">
+            <table class="calendar-table">
+              <thead>
+                <tr>
+                  <th>Chegou em</th>
+                  <th>Tema</th>
+                  <th>Local</th>
+                  <th>Processo</th>
+                  <th>Status</th>
+                  <th class="text-right">Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="open-table-body"></tbody>
+            </table>
+          </div>
+        </section>
 
         <section class="calendar-panel rounded-2xl p-4 sm:p-5">
           <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -576,6 +711,17 @@
               </select>
             </label>
           </div>
+
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label>
+              <span class="calendar-label">Exportar de</span>
+              <input id="export-start" class="calendar-field" type="date" />
+            </label>
+            <label>
+              <span class="calendar-label">Exportar ate</span>
+              <input id="export-end" class="calendar-field" type="date" />
+            </label>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -651,10 +797,13 @@
   <script>
     // Cada registro representa uma demanda ja realizada e fica salvo no navegador.
     const STORAGE_KEY = "calendario_demandas_realizadas_v1";
+    const OPEN_STORAGE_KEY = "calendario_demandas_em_aberto_v1";
 
     const state = {
       records: [],
+      openDemands: [],
       editingId: null,
+      editingOpenId: null,
       selectedDate: "",
       viewYear: 0,
       viewMonth: 0,
@@ -689,6 +838,8 @@
       filterType: document.getElementById("filter-type"),
       filterLocal: document.getElementById("filter-local"),
       filterOrder: document.getElementById("filter-order"),
+      exportStart: document.getElementById("export-start"),
+      exportEnd: document.getElementById("export-end"),
       clearDay: document.getElementById("clear-day"),
       clearFilters: document.getElementById("clear-filters"),
       importCsv: document.getElementById("import-csv"),
@@ -699,6 +850,16 @@
       statMonth: document.getElementById("stat-month"),
       statToday: document.getElementById("stat-today"),
       statTypes: document.getElementById("stat-types"),
+      openForm: document.getElementById("open-form"),
+      openData: document.getElementById("open-data"),
+      openTema: document.getElementById("open-tema"),
+      openLocal: document.getElementById("open-local"),
+      openProcesso: document.getElementById("open-processo"),
+      openStatus: document.getElementById("open-status"),
+      openReset: document.getElementById("open-reset"),
+      openSubmitLabel: document.getElementById("open-submit-label"),
+      openSummary: document.getElementById("open-summary"),
+      openTableBody: document.getElementById("open-table-body"),
       countType: document.getElementById("count-type"),
       countLocal: document.getElementById("count-local"),
       tableTitle: document.getElementById("table-title"),
@@ -733,6 +894,23 @@
         .toLowerCase()
         .trim();
 
+    const normalizeSearchText = (value) =>
+      normalizeText(value).replace(/[\s-]+/g, "");
+
+    const getRecordKey = (record) => {
+      const subjectOrType = String(record.assunto || "").trim() ? record.assunto : record.tipo;
+      return [record.data, record.local, subjectOrType].map(normalizeSearchText).join("|");
+    };
+
+    const getOpenDemandKey = (demand) =>
+      [demand.dataChegada, demand.local, demand.tema].map(normalizeSearchText).join("|");
+
+    const hasDuplicateRecord = (candidate, ignoredId = "") =>
+      state.records.some((record) => record.id !== ignoredId && getRecordKey(record) === getRecordKey(candidate));
+
+    const hasDuplicateOpenDemand = (candidate, ignoredId = "") =>
+      state.openDemands.some((demand) => demand.id !== ignoredId && getOpenDemandKey(demand) === getOpenDemandKey(candidate));
+
     const escapeHtml = (value) =>
       String(value || "")
         .replaceAll("&", "&amp;")
@@ -763,6 +941,24 @@
       updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),
     });
 
+    const OPEN_STATUS_LABELS = ["Em progresso", "Em espera", "Concluido sem relatorio"];
+
+    const normalizeOpenStatus = (status) => {
+      const text = String(status || "").trim();
+      return OPEN_STATUS_LABELS.includes(text) ? text : "Em progresso";
+    };
+
+    const normalizeOpenDemand = (demand) => ({
+      id: demand.id || makeId(),
+      dataChegada: demand.dataChegada || demand.data || todayInputValue(),
+      tema: String(demand.tema || "").trim(),
+      local: String(demand.local || "").trim(),
+      numeroProcesso: String(demand.numeroProcesso || demand.processo || "").trim(),
+      status: normalizeOpenStatus(demand.status),
+      createdAt: demand.createdAt || new Date().toISOString(),
+      updatedAt: demand.updatedAt || demand.createdAt || new Date().toISOString(),
+    });
+
     const loadRecords = () => {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -773,11 +969,30 @@
       }
     };
 
+    const loadOpenDemands = () => {
+      try {
+        const raw = localStorage.getItem(OPEN_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(normalizeOpenDemand) : [];
+      } catch {
+        return [];
+      }
+    };
+
     const saveRecords = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
       els.saveStatus.classList.remove("hidden");
       window.clearTimeout(saveRecords.statusTimer);
       saveRecords.statusTimer = window.setTimeout(() => {
+        els.saveStatus.classList.add("hidden");
+      }, 1600);
+    };
+
+    const saveOpenDemands = () => {
+      localStorage.setItem(OPEN_STORAGE_KEY, JSON.stringify(state.openDemands));
+      els.saveStatus.classList.remove("hidden");
+      window.clearTimeout(saveOpenDemands.statusTimer);
+      saveOpenDemands.statusTimer = window.setTimeout(() => {
         els.saveStatus.classList.add("hidden");
       }, 1600);
     };
@@ -816,12 +1031,12 @@
     };
 
     const getFilteredRecords = () => {
-      const search = normalizeText(state.filters.search);
+      const search = normalizeSearchText(state.filters.search);
       const selectedType = normalizeText(state.filters.type);
       const selectedLocal = normalizeText(state.filters.local);
 
       const filtered = state.records.filter((record) => {
-        const text = normalizeText([record.data, record.local, record.assunto, record.tipo].join(" "));
+        const text = normalizeSearchText([record.data, record.local, record.assunto, record.tipo].join(" "));
         const matchesDay = !state.selectedDate || record.data === state.selectedDate;
         const matchesSearch = !search || text.includes(search);
         const matchesStart = !state.filters.start || record.data >= state.filters.start;
@@ -925,7 +1140,7 @@
       }
 
       const max = Math.max(...groups.map((group) => group.count), 1);
-      container.innerHTML = groups.slice(0, 8).map((group) => {
+      container.innerHTML = groups.map((group) => {
         const width = Math.max(6, Math.round((group.count / max) * 100));
         return `
           <button class="count-line" type="button" data-count-field="${field}" data-count-value="${escapeHtml(group.label)}" title="Ver todos os registros de ${escapeHtml(group.label)}">
@@ -937,6 +1152,60 @@
           </button>
         `;
       }).join("");
+    };
+
+    const getOpenStatusClass = (status) => {
+      if (status === "Em espera") return "status-badge--waiting";
+      if (status === "Concluido sem relatorio") return "status-badge--done-no-report";
+      return "status-badge--progress";
+    };
+
+    const renderOpenDemands = () => {
+      const openCount = state.openDemands.filter((demand) => demand.status !== "Concluido sem relatorio").length;
+      const doneNoReportCount = state.openDemands.length - openCount;
+      els.openSummary.textContent = `${openCount} em aberto | ${doneNoReportCount} sem relatorio`;
+
+      const rows = [...state.openDemands].sort((a, b) => {
+        if (a.status !== b.status) return a.status.localeCompare(b.status, "pt-BR");
+        return b.dataChegada.localeCompare(a.dataChegada) || b.createdAt.localeCompare(a.createdAt);
+      });
+
+      if (!rows.length) {
+        els.openTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="text-center">
+              <div class="py-8 text-sm font-bold text-slate-500">Nenhuma demanda em aberto cadastrada.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      els.openTableBody.innerHTML = rows.map((demand) => `
+        <tr data-open-id="${escapeHtml(demand.id)}">
+          <td class="whitespace-nowrap font-black text-[#004587]">${formatDateBR(demand.dataChegada)}</td>
+          <td class="font-bold">${escapeHtml(demand.tema)}</td>
+          <td>${escapeHtml(demand.local)}</td>
+          <td>${escapeHtml(demand.numeroProcesso) || "-"}</td>
+          <td>
+            <span class="status-badge ${getOpenStatusClass(demand.status)}">${escapeHtml(demand.status)}</span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button class="calendar-btn calendar-btn-primary" type="button" data-open-action="complete-report" data-open-id="${escapeHtml(demand.id)}" title="Adicionar ao historico de demandas realizadas">
+                <i data-lucide="file-check" width="15" height="15"></i>
+                Relatorio
+              </button>
+              <button class="icon-btn" type="button" data-open-action="edit" data-open-id="${escapeHtml(demand.id)}" title="Editar">
+                <i data-lucide="pencil" width="15" height="15"></i>
+              </button>
+              <button class="icon-btn" type="button" data-open-action="delete" data-open-id="${escapeHtml(demand.id)}" title="Excluir">
+                <i data-lucide="trash-2" width="15" height="15"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join("");
     };
 
     const renderTable = (items) => {
@@ -991,6 +1260,7 @@
       els.statToday.textContent = todayRecords.length;
       els.statTypes.textContent = typeGroups.length;
 
+      renderOpenDemands();
       renderCounts(els.countType, typeGroups, "tipo");
       renderCounts(els.countLocal, localGroups, "local");
       renderTable(filtered);
@@ -1004,6 +1274,15 @@
       els.data.value = keepSelectedDate && state.selectedDate ? state.selectedDate : todayInputValue();
       els.formTitle.textContent = "Nova demanda";
       els.submitLabel.innerHTML = `<i data-lucide="save" width="16" height="16"></i>Salvar demanda`;
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    const resetOpenForm = () => {
+      state.editingOpenId = null;
+      els.openForm.reset();
+      els.openData.value = todayInputValue();
+      els.openStatus.value = "Em progresso";
+      els.openSubmitLabel.innerHTML = `<i data-lucide="save" width="16" height="16"></i>Salvar aberta`;
       if (window.lucide) window.lucide.createIcons();
     };
 
@@ -1022,11 +1301,34 @@
       if (window.lucide) window.lucide.createIcons();
     };
 
+    const fillOpenFormForEdit = (id) => {
+      const demand = state.openDemands.find((item) => item.id === id);
+      if (!demand) return;
+
+      state.editingOpenId = id;
+      els.openData.value = demand.dataChegada;
+      els.openTema.value = demand.tema;
+      els.openLocal.value = demand.local;
+      els.openProcesso.value = demand.numeroProcesso;
+      els.openStatus.value = demand.status;
+      els.openSubmitLabel.innerHTML = `<i data-lucide="save" width="16" height="16"></i>Atualizar aberta`;
+      els.openForm.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (window.lucide) window.lucide.createIcons();
+    };
+
     const buildRecordFromForm = () => ({
       data: els.data.value || todayInputValue(),
       local: els.local.value.trim(),
       assunto: els.assunto.value.trim(),
       tipo: els.tipo.value.trim(),
+    });
+
+    const buildOpenDemandFromForm = () => ({
+      dataChegada: els.openData.value || todayInputValue(),
+      tema: els.openTema.value.trim(),
+      local: els.openLocal.value.trim(),
+      numeroProcesso: els.openProcesso.value.trim(),
+      status: els.openStatus.value,
     });
 
     const upsertRecord = (event) => {
@@ -1040,6 +1342,11 @@
 
       if (isFutureDate(payload.data)) {
         alert("Este calendario registra apenas demandas ja realizadas. Escolha uma data de hoje ou anterior.");
+        return;
+      }
+
+      if (hasDuplicateRecord(payload, state.editingId || "")) {
+        alert("Ja existe uma demanda realizada com a mesma data, local e assunto.");
         return;
       }
 
@@ -1064,6 +1371,45 @@
       render();
     };
 
+    const upsertOpenDemand = (event) => {
+      event.preventDefault();
+      const payload = buildOpenDemandFromForm();
+
+      if (!payload.dataChegada || !payload.tema || !payload.local || !payload.numeroProcesso || !payload.status) {
+        alert("Preencha data que chegou, tema, local, numero de processo e status.");
+        return;
+      }
+
+      if (isFutureDate(payload.dataChegada)) {
+        alert("A data de chegada nao pode ser futura.");
+        return;
+      }
+
+      if (hasDuplicateOpenDemand(payload, state.editingOpenId || "")) {
+        alert("Ja existe uma demanda em aberto com a mesma data de chegada, local e tema.");
+        return;
+      }
+
+      if (state.editingOpenId) {
+        state.openDemands = state.openDemands.map((demand) =>
+          demand.id === state.editingOpenId
+            ? normalizeOpenDemand({ ...demand, ...payload, updatedAt: new Date().toISOString() })
+            : demand
+        );
+      } else {
+        state.openDemands.push(normalizeOpenDemand({
+          ...payload,
+          id: makeId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+
+      saveOpenDemands();
+      resetOpenForm();
+      render();
+    };
+
     const deleteRecord = (id) => {
       const record = state.records.find((item) => item.id === id);
       if (!record) return;
@@ -1074,6 +1420,61 @@
       state.records = state.records.filter((item) => item.id !== id);
       if (state.editingId === id) resetForm();
       saveRecords();
+      render();
+    };
+
+    const deleteOpenDemand = (id) => {
+      const demand = state.openDemands.find((item) => item.id === id);
+      if (!demand) return;
+      const confirmed = confirm(`Excluir a demanda em aberto "${demand.tema}"?`);
+      if (!confirmed) return;
+
+      state.openDemands = state.openDemands.filter((item) => item.id !== id);
+      if (state.editingOpenId === id) resetOpenForm();
+      saveOpenDemands();
+      render();
+    };
+
+    const completeOpenDemandWithReport = (id) => {
+      const demand = state.openDemands.find((item) => item.id === id);
+      if (!demand) return;
+
+      const confirmed = confirm(`Adicionar "${demand.tema}" ao historico de demandas realizadas e remover da fila em aberto?`);
+      if (!confirmed) return;
+
+      const today = todayInputValue();
+      const assunto = [demand.tema, demand.numeroProcesso ? `Processo: ${demand.numeroProcesso}` : ""]
+        .filter(Boolean)
+        .join(" | ");
+
+      const completedRecord = normalizeRecord({
+        id: makeId(),
+        data: today,
+        local: demand.local,
+        assunto,
+        tipo: "Relatorio",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      if (hasDuplicateRecord(completedRecord)) {
+        alert("Essa demanda ja existe no historico de demandas realizadas. A demanda em aberto nao foi removida.");
+        return;
+      }
+
+      state.records.push(completedRecord);
+
+      state.openDemands = state.openDemands.filter((item) => item.id !== id);
+      if (state.editingOpenId === id) resetOpenForm();
+
+      const selected = inputValueToDate(today);
+      state.selectedDate = today;
+      state.viewYear = selected.getFullYear();
+      state.viewMonth = selected.getMonth();
+      els.data.value = today;
+
+      saveRecords();
+      saveOpenDemands();
       render();
     };
 
@@ -1137,6 +1538,8 @@
       state.filters = { search: "", start: "", end: "", type: "", local: "", order: "date-desc" };
       state.selectedDate = "";
       syncFilterInputs();
+      els.exportStart.value = "";
+      els.exportEnd.value = "";
       resetForm(false);
       render();
     };
@@ -1225,9 +1628,6 @@
       return isValidIsoDate(isoDate) ? isoDate : "";
     };
 
-    const getRecordKey = (record) =>
-      [record.data, record.local, record.assunto, record.tipo].map(normalizeText).join("|");
-
     const importCsvText = (text) => {
       const delimiter = detectCsvDelimiter(text);
       const rows = parseCsvRows(text, delimiter);
@@ -1307,14 +1707,50 @@
       event.target.value = "";
     };
 
+    const getExportRows = () => {
+      const start = els.exportStart.value;
+      const end = els.exportEnd.value;
+
+      if (start && end && start > end) {
+        alert("A data inicial da exportacao nao pode ser maior que a data final.");
+        return null;
+      }
+
+      if (!start && !end) return getFilteredRecords();
+
+      return state.records
+        .filter((record) => {
+          const matchesStart = !start || record.data >= start;
+          const matchesEnd = !end || record.data <= end;
+          return matchesStart && matchesEnd;
+        })
+        .sort((a, b) => b.data.localeCompare(a.data) || b.createdAt.localeCompare(a.createdAt));
+    };
+
+    const getExportFilename = () => {
+      const start = els.exportStart.value;
+      const end = els.exportEnd.value;
+      if (start || end) {
+        return `demandas-realizadas-${start || "inicio"}-a-${end || todayInputValue()}.csv`;
+      }
+      return `demandas-realizadas-${todayInputValue()}.csv`;
+    };
+
     const exportCsv = () => {
-      const rows = getFilteredRecords();
+      const rows = getExportRows();
+      if (!rows) return;
+
+      if (!rows.length) {
+        alert("Nenhum registro encontrado para exportar.");
+        return;
+      }
+
       const header = ["data", "local", "assunto", "tipo"];
       const csvRows = rows.map((record) =>
         header.map((field) => `"${String(record[field] || "").replaceAll('"', '""')}"`).join(";")
       );
       downloadTextFile(
-        `demandas-realizadas-${todayInputValue()}.csv`,
+        getExportFilename(),
         `\ufeff${header.join(";")}\n${csvRows.join("\n")}`,
         "text/csv;charset=utf-8"
       );
@@ -1323,6 +1759,8 @@
     const bindEvents = () => {
       els.form.addEventListener("submit", upsertRecord);
       els.resetForm.addEventListener("click", () => resetForm());
+      els.openForm.addEventListener("submit", upsertOpenDemand);
+      els.openReset.addEventListener("click", resetOpenForm);
       els.previousMonth.addEventListener("click", () => moveMonth(-1));
       els.nextMonth.addEventListener("click", () => moveMonth(1));
       els.currentMonth.addEventListener("click", goToCurrentMonth);
@@ -1368,6 +1806,16 @@
         if (action === "delete") deleteRecord(id);
       });
 
+      els.openTableBody.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-open-action]");
+        if (!button) return;
+        const id = button.getAttribute("data-open-id");
+        const action = button.getAttribute("data-open-action");
+        if (action === "complete-report") completeOpenDemandWithReport(id);
+        if (action === "edit") fillOpenFormForEdit(id);
+        if (action === "delete") deleteOpenDemand(id);
+      });
+
       els.deleteAll.addEventListener("click", () => {
         if (!state.records.length) return;
         const confirmed = confirm("Apagar todos os registros deste calendario?");
@@ -1383,12 +1831,17 @@
     const init = () => {
       const today = inputValueToDate(todayInputValue());
       state.records = loadRecords();
+      state.openDemands = loadOpenDemands();
       state.viewYear = today.getFullYear();
       state.viewMonth = today.getMonth();
       els.data.max = todayInputValue();
+      els.openData.max = todayInputValue();
       els.filterStart.max = todayInputValue();
       els.filterEnd.max = todayInputValue();
+      els.exportStart.max = todayInputValue();
+      els.exportEnd.max = todayInputValue();
       els.data.value = todayInputValue();
+      els.openData.value = todayInputValue();
       bindEvents();
       render();
       if (window.lucide) window.lucide.createIcons();
