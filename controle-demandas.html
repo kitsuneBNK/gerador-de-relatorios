@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendario de Demandas Realizadas</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link id="app-css" rel="stylesheet" href="./styles.css" />
+  <script>
+    (function () {
+      const link = document.getElementById("app-css");
+      if (!link) return;
+      const isGh = location.hostname.endsWith("github.io");
+      const repo = isGh ? location.pathname.split("/").filter(Boolean)[0] : "";
+      const fallback = repo ? `/${repo}/styles.css` : "";
+      link.addEventListener("error", () => {
+        if (fallback && link.getAttribute("href") !== fallback) {
+          link.setAttribute("href", fallback);
+        }
+      });
+    })();
+  </script>
+  <style>
+    .calendar-shell {
+      display: grid;
+      grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .calendar-panel {
+      border: 1px solid var(--app-border);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 18px 42px rgba(15, 31, 53, 0.12);
+    }
+
+    .calendar-field {
+      width: 100%;
+      border: 1px solid #d7e2ed;
+      background: #ffffff;
+      color: #0f172a;
+      border-radius: 12px;
+      padding: 11px 12px;
+      font-size: 13px;
+      line-height: 1.35;
+      outline: none;
+    }
+
+    .calendar-field:focus {
+      border-color: var(--app-accent);
+      box-shadow: 0 0 0 3px rgba(0, 87, 163, 0.14);
+    }
+
+    .calendar-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--app-text-muted);
+    }
+
+    .calendar-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      border-radius: 12px;
+      padding: 10px 13px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
+    }
+
+    .calendar-btn:active {
+      transform: translateY(1px);
+    }
+
+    .calendar-btn-primary {
+      background: var(--app-accent);
+      color: #ffffff;
+    }
+
+    .calendar-btn-primary:hover {
+      filter: brightness(0.95);
+    }
+
+    .calendar-btn-ghost {
+      border: 1px solid var(--app-border);
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--app-text);
+    }
+
+    .calendar-btn-danger {
+      border: 1px solid rgba(220, 38, 38, 0.18);
+      background: rgba(254, 242, 242, 0.92);
+      color: #b91c1c;
+    }
+
+    .calendar-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .calendar-stat {
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      background: rgba(255, 255, 255, 0.86);
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 96px;
+    }
+
+    .calendar-stat-value {
+      display: block;
+      font-family: "Sora", "Manrope", "Segoe UI", sans-serif;
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--app-accent);
+    }
+
+    .calendar-stat-label {
+      display: block;
+      margin-top: 8px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--app-text-muted);
+    }
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .weekday {
+      padding: 4px 0;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--app-text-muted);
+    }
+
+    .day-cell {
+      position: relative;
+      min-height: 86px;
+      border: 1px solid #dbe4ee;
+      border-radius: 14px;
+      background: #ffffff;
+      padding: 9px;
+      text-align: left;
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .day-cell:not(:disabled):hover {
+      transform: translateY(-1px);
+      border-color: var(--app-accent);
+      box-shadow: 0 10px 24px rgba(15, 31, 53, 0.12);
+    }
+
+    .day-cell.is-outside {
+      opacity: 0.45;
+    }
+
+    .day-cell.is-future {
+      cursor: not-allowed;
+      background: #f8fafc;
+      color: #94a3b8;
+    }
+
+    .day-cell.is-today {
+      border-color: rgba(0, 87, 163, 0.45);
+    }
+
+    .day-cell.is-selected {
+      background: rgba(0, 87, 163, 0.08);
+      border-color: var(--app-accent);
+      box-shadow: inset 0 0 0 2px rgba(0, 87, 163, 0.12);
+    }
+
+    .day-number {
+      display: block;
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--app-text);
+    }
+
+    .day-month {
+      display: block;
+      margin-top: 2px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--app-text-muted);
+    }
+
+    .day-count {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--app-accent);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .calendar-table-wrap {
+      overflow: auto;
+      border: 1px solid var(--app-border);
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .calendar-table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .calendar-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 12px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .calendar-table td {
+      border-bottom: 1px solid #edf2f7;
+      padding: 12px;
+      vertical-align: top;
+      color: #0f172a;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      border: 1px solid #dbe4ee;
+      background: #ffffff;
+      color: #1f3b57;
+    }
+
+    .icon-btn:hover {
+      background: #f8fafc;
+    }
+
+    .count-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .count-line {
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(120px, 2fr) 54px;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .count-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .count-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--app-accent), #22c55e);
+    }
+
+    .dark .calendar-panel,
+    .dark .calendar-stat,
+    .dark .calendar-btn-ghost {
+      background: rgba(11, 22, 40, 0.92);
+      border-color: var(--app-border);
+    }
+
+    .dark .calendar-table-wrap,
+    .dark .calendar-table td,
+    .dark .icon-btn,
+    .dark .day-cell {
+      background: #0b1628;
+      color: var(--app-text);
+      border-color: var(--app-border);
+    }
+
+    .dark .calendar-table th,
+    .dark .day-cell.is-future {
+      background: #081426;
+      border-color: var(--app-border);
+      color: var(--app-text-muted);
+    }
+
+    .dark .calendar-field {
+      background: #07111f;
+      color: var(--app-text);
+      border-color: var(--app-border);
+    }
+
+    .dark .count-track {
+      background: #1e293b;
+    }
+
+    @media (max-width: 1100px) {
+      .calendar-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .month-grid {
+        gap: 5px;
+      }
+
+      .day-cell {
+        min-height: 68px;
+        border-radius: 11px;
+        padding: 7px;
+      }
+
+      .day-month {
+        display: none;
+      }
+
+      .day-count {
+        right: 5px;
+        bottom: 5px;
+        min-width: 22px;
+        height: 21px;
+      }
+    }
+
+    @media print {
+      .no-print-area { display: none !important; }
+      body { background: #ffffff !important; }
+      .calendar-panel {
+        box-shadow: none !important;
+        border-color: #cbd5e1 !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-100 app-theme app-bg ui-theme">
+  <button id="theme-toggle" class="theme-toggle no-print-area" type="button">Modo escuro</button>
+  <a href="./index.html" class="back-to-index no-print-area" aria-label="Voltar ao hub"><- Voltar ao hub</a>
+
+  <main class="max-w-[1600px] mx-auto p-4 sm:p-6 pt-20 pb-10">
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Historico de atividades</p>
+        <h1 class="hub-title mt-2 text-2xl sm:text-3xl font-black text-slate-900">Calendario de Demandas Realizadas</h1>
+      </div>
+      <div id="save-status" class="hidden rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">
+        Salvo no navegador
+      </div>
+    </div>
+
+    <div class="calendar-shell">
+      <aside class="calendar-panel rounded-2xl p-4 sm:p-5 no-print-area xl:sticky xl:top-6">
+        <form id="record-form" class="space-y-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Registro passado</p>
+              <h2 id="form-title" class="mt-1 text-lg font-black text-[#004587]">Nova demanda</h2>
+            </div>
+            <button id="reset-form" class="calendar-btn calendar-btn-ghost" type="button" title="Limpar formulario">
+              <i data-lucide="rotate-ccw" width="15" height="15"></i>
+              Novo
+            </button>
+          </div>
+
+          <label>
+            <span class="calendar-label">Data</span>
+            <input id="data" class="calendar-field" type="date" required />
+          </label>
+
+          <label>
+            <span class="calendar-label">Local</span>
+            <input id="local" class="calendar-field" maxlength="120" placeholder="Ex: SQN 302, Praca central, Asa Norte" required />
+          </label>
+
+          <label>
+            <span class="calendar-label">Assunto</span>
+            <input id="assunto" class="calendar-field" maxlength="140" placeholder="Resumo curto do que aconteceu" required />
+          </label>
+
+          <label>
+            <span class="calendar-label">Tipo</span>
+            <input id="tipo" class="calendar-field" list="tipo-list" maxlength="80" placeholder="Ex: Zeladoria, obra, apoio" required />
+            <datalist id="tipo-list">
+              <option value="Zeladoria"></option>
+              <option value="Manutencao - Parquinho"></option>
+              <option value="Manutencao - Calcada"></option>
+              <option value="Manutencao - Quadra Poliesportiva"></option>
+              <option value="Manutencao - PAC"></option>
+              <option value="Manutencao - Hidraulica"></option>
+              <option value="Recolhimento - Residuos"></option>
+              <option value="Recolhimento - Podas"></option>
+              <option value="Recolhimento de Moveis"></option>
+              <option value="Reposicao de Tampa"></option>
+              <option value="Obra"></option>
+              <option value="Entrega de Areia"></option>
+              <option value="Retirada de Entulhos"></option>
+              <option value="Apoio"></option>
+            </datalist>
+          </label>
+
+          <button id="submit-label" class="calendar-btn calendar-btn-primary w-full" type="submit">
+            <i data-lucide="save" width="16" height="16"></i>
+            Salvar demanda
+          </button>
+        </form>
+      </aside>
+
+      <section class="space-y-4">
+        <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <div class="calendar-stat">
+            <span id="stat-filtered" class="calendar-stat-value">0</span>
+            <span class="calendar-stat-label">Registros filtrados</span>
+          </div>
+          <div class="calendar-stat">
+            <span id="stat-month" class="calendar-stat-value">0</span>
+            <span class="calendar-stat-label">No mes exibido</span>
+          </div>
+          <div class="calendar-stat">
+            <span id="stat-today" class="calendar-stat-value">0</span>
+            <span class="calendar-stat-label">Registrados hoje</span>
+          </div>
+          <div class="calendar-stat">
+            <span id="stat-types" class="calendar-stat-value">0</span>
+            <span class="calendar-stat-label">Tipos filtrados</span>
+          </div>
+        </div>
+
+        <section class="calendar-panel rounded-2xl p-4 sm:p-5">
+          <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Calendario</p>
+              <h2 id="month-title" class="mt-1 text-lg font-black text-[#004587]">Mes</h2>
+            </div>
+            <div class="flex flex-wrap gap-2 no-print-area">
+              <button id="previous-month" class="calendar-btn calendar-btn-ghost" type="button" title="Mes anterior">
+                <i data-lucide="chevron-left" width="15" height="15"></i>
+                Anterior
+              </button>
+              <button id="current-month" class="calendar-btn calendar-btn-ghost" type="button">
+                <i data-lucide="calendar-days" width="15" height="15"></i>
+                Mes atual
+              </button>
+              <button id="next-month" class="calendar-btn calendar-btn-ghost" type="button" title="Proximo mes">
+                Proximo
+                <i data-lucide="chevron-right" width="15" height="15"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="month-grid mb-2">
+            <div class="weekday">Dom</div>
+            <div class="weekday">Seg</div>
+            <div class="weekday">Ter</div>
+            <div class="weekday">Qua</div>
+            <div class="weekday">Qui</div>
+            <div class="weekday">Sex</div>
+            <div class="weekday">Sab</div>
+          </div>
+          <div id="calendar-grid" class="month-grid"></div>
+        </section>
+
+        <div class="calendar-panel rounded-2xl p-4 sm:p-5 no-print-area">
+          <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Pesquisa</p>
+              <h2 class="mt-1 text-lg font-black text-[#004587]">Filtros do historico</h2>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="clear-day" class="calendar-btn calendar-btn-ghost" type="button">
+                <i data-lucide="calendar-x" width="15" height="15"></i>
+                Mostrar todos os dias
+              </button>
+              <button id="clear-filters" class="calendar-btn calendar-btn-ghost" type="button">
+                <i data-lucide="x" width="15" height="15"></i>
+                Limpar filtros
+              </button>
+              <button id="export-csv" class="calendar-btn calendar-btn-ghost" type="button">
+                <i data-lucide="file-down" width="15" height="15"></i>
+                CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+            <label class="xl:col-span-2">
+              <span class="calendar-label">Busca livre</span>
+              <input id="filter-search" class="calendar-field" type="search" placeholder="Pesquisar por data, local, assunto ou tipo" />
+            </label>
+            <label>
+              <span class="calendar-label">Data inicial</span>
+              <input id="filter-start" class="calendar-field" type="date" />
+            </label>
+            <label>
+              <span class="calendar-label">Data final</span>
+              <input id="filter-end" class="calendar-field" type="date" />
+            </label>
+            <label>
+              <span class="calendar-label">Ordenar</span>
+              <select id="filter-order" class="calendar-field">
+                <option value="date-desc">Mais recentes</option>
+                <option value="date-asc">Mais antigas</option>
+                <option value="type">Tipo</option>
+                <option value="local">Local</option>
+              </select>
+            </label>
+            <label class="md:col-span-1 xl:col-span-2">
+              <span class="calendar-label">Tipo</span>
+              <select id="filter-type" class="calendar-field">
+                <option value="">Todos os tipos</option>
+              </select>
+            </label>
+            <label class="md:col-span-1 xl:col-span-3">
+              <span class="calendar-label">Local</span>
+              <select id="filter-local" class="calendar-field">
+                <option value="">Todos os locais</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <section class="calendar-panel rounded-2xl p-4 sm:p-5">
+            <div class="mb-4">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Contabilizacao</p>
+              <h2 class="mt-1 text-lg font-black text-[#004587]">Por tipo</h2>
+            </div>
+            <div id="count-type" class="count-list"></div>
+          </section>
+
+          <section class="calendar-panel rounded-2xl p-4 sm:p-5">
+            <div class="mb-4">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Contabilizacao</p>
+              <h2 class="mt-1 text-lg font-black text-[#004587]">Por local</h2>
+            </div>
+            <div id="count-local" class="count-list"></div>
+          </section>
+        </div>
+
+        <section class="calendar-panel rounded-2xl p-4 sm:p-5">
+          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Historico</p>
+              <h2 id="table-title" class="mt-1 text-lg font-black text-[#004587]">Demandas cadastradas</h2>
+            </div>
+            <button id="delete-all" class="calendar-btn calendar-btn-danger no-print-area" type="button">
+              <i data-lucide="trash-2" width="15" height="15"></i>
+              Apagar tudo
+            </button>
+          </div>
+
+          <div class="calendar-table-wrap">
+            <table class="calendar-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Local</th>
+                  <th>Assunto</th>
+                  <th>Tipo</th>
+                  <th class="text-right no-print-area">Acoes</th>
+                </tr>
+              </thead>
+              <tbody id="record-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const KEY = "gdf_theme_v1";
+      const root = document.body;
+      const btn = document.getElementById("theme-toggle");
+      const apply = (theme) => {
+        const isDark = theme === "dark";
+        root.classList.toggle("dark", isDark);
+        btn.textContent = isDark ? "Modo claro" : "Modo escuro";
+      };
+      const saved = localStorage.getItem(KEY);
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      apply(saved || (prefersDark ? "dark" : "light"));
+      btn.addEventListener("click", () => {
+        const next = root.classList.contains("dark") ? "light" : "dark";
+        localStorage.setItem(KEY, next);
+        apply(next);
+      });
+    })();
+  </script>
+
+  <script>
+    // Cada registro representa uma demanda ja realizada e fica salvo no navegador.
+    const STORAGE_KEY = "calendario_demandas_realizadas_v1";
+
+    const state = {
+      records: [],
+      editingId: null,
+      selectedDate: "",
+      viewYear: 0,
+      viewMonth: 0,
+      filters: {
+        search: "",
+        start: "",
+        end: "",
+        type: "",
+        local: "",
+        order: "date-desc",
+      },
+    };
+
+    const els = {
+      form: document.getElementById("record-form"),
+      formTitle: document.getElementById("form-title"),
+      resetForm: document.getElementById("reset-form"),
+      submitLabel: document.getElementById("submit-label"),
+      saveStatus: document.getElementById("save-status"),
+      data: document.getElementById("data"),
+      local: document.getElementById("local"),
+      assunto: document.getElementById("assunto"),
+      tipo: document.getElementById("tipo"),
+      monthTitle: document.getElementById("month-title"),
+      previousMonth: document.getElementById("previous-month"),
+      currentMonth: document.getElementById("current-month"),
+      nextMonth: document.getElementById("next-month"),
+      calendarGrid: document.getElementById("calendar-grid"),
+      filterSearch: document.getElementById("filter-search"),
+      filterStart: document.getElementById("filter-start"),
+      filterEnd: document.getElementById("filter-end"),
+      filterType: document.getElementById("filter-type"),
+      filterLocal: document.getElementById("filter-local"),
+      filterOrder: document.getElementById("filter-order"),
+      clearDay: document.getElementById("clear-day"),
+      clearFilters: document.getElementById("clear-filters"),
+      exportCsv: document.getElementById("export-csv"),
+      deleteAll: document.getElementById("delete-all"),
+      statFiltered: document.getElementById("stat-filtered"),
+      statMonth: document.getElementById("stat-month"),
+      statToday: document.getElementById("stat-today"),
+      statTypes: document.getElementById("stat-types"),
+      countType: document.getElementById("count-type"),
+      countLocal: document.getElementById("count-local"),
+      tableTitle: document.getElementById("table-title"),
+      tableBody: document.getElementById("record-table-body"),
+    };
+
+    const todayInputValue = () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+    };
+
+    const dateToInputValue = (date) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+    };
+
+    const inputValueToDate = (value) => {
+      const [year, month, day] = String(value || "").split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    const makeId = () => {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+      return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    };
+
+    const normalizeText = (value) =>
+      String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const escapeHtml = (value) =>
+      String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+
+    const formatDateBR = (isoDate) => {
+      const parts = String(isoDate || "").split("-");
+      if (parts.length !== 3) return "";
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    };
+
+    const formatMonthTitle = (year, month) => {
+      const date = new Date(year, month, 1);
+      const formatted = date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    };
+
+    const normalizeRecord = (record) => ({
+      id: record.id || makeId(),
+      data: record.data || todayInputValue(),
+      local: String(record.local || "").trim(),
+      assunto: String(record.assunto || "").trim(),
+      tipo: String(record.tipo || "").trim(),
+      createdAt: record.createdAt || new Date().toISOString(),
+      updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),
+    });
+
+    const loadRecords = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(normalizeRecord) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const saveRecords = () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+      els.saveStatus.classList.remove("hidden");
+      window.clearTimeout(saveRecords.statusTimer);
+      saveRecords.statusTimer = window.setTimeout(() => {
+        els.saveStatus.classList.add("hidden");
+      }, 1600);
+    };
+
+    const isFutureDate = (isoDate) => isoDate > todayInputValue();
+
+    const getMonthBounds = () => {
+      const first = new Date(state.viewYear, state.viewMonth, 1);
+      const last = new Date(state.viewYear, state.viewMonth + 1, 0);
+      return {
+        first: dateToInputValue(first),
+        last: dateToInputValue(last),
+      };
+    };
+
+    const getMonthRecords = () => {
+      const bounds = getMonthBounds();
+      return state.records.filter((record) => record.data >= bounds.first && record.data <= bounds.last);
+    };
+
+    const getRecordsByDate = () => {
+      const map = new Map();
+      state.records.forEach((record) => {
+        map.set(record.data, (map.get(record.data) || 0) + 1);
+      });
+      return map;
+    };
+
+    const getUniqueValues = (field) => {
+      const values = new Map();
+      state.records.forEach((record) => {
+        const value = String(record[field] || "").trim();
+        if (value) values.set(normalizeText(value), value);
+      });
+      return Array.from(values.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    };
+
+    const getFilteredRecords = () => {
+      const search = normalizeText(state.filters.search);
+      const selectedType = normalizeText(state.filters.type);
+      const selectedLocal = normalizeText(state.filters.local);
+
+      const filtered = state.records.filter((record) => {
+        const text = normalizeText([record.data, record.local, record.assunto, record.tipo].join(" "));
+        const matchesDay = !state.selectedDate || record.data === state.selectedDate;
+        const matchesSearch = !search || text.includes(search);
+        const matchesStart = !state.filters.start || record.data >= state.filters.start;
+        const matchesEnd = !state.filters.end || record.data <= state.filters.end;
+        const matchesType = !selectedType || normalizeText(record.tipo) === selectedType;
+        const matchesLocal = !selectedLocal || normalizeText(record.local) === selectedLocal;
+        return matchesDay && matchesSearch && matchesStart && matchesEnd && matchesType && matchesLocal;
+      });
+
+      return filtered.sort((a, b) => {
+        if (state.filters.order === "date-asc") return a.data.localeCompare(b.data) || a.createdAt.localeCompare(b.createdAt);
+        if (state.filters.order === "type") return a.tipo.localeCompare(b.tipo, "pt-BR") || b.data.localeCompare(a.data);
+        if (state.filters.order === "local") return a.local.localeCompare(b.local, "pt-BR") || b.data.localeCompare(a.data);
+        return b.data.localeCompare(a.data) || b.createdAt.localeCompare(a.createdAt);
+      });
+    };
+
+    const aggregateBy = (items, field) => {
+      const groups = new Map();
+      items.forEach((record) => {
+        const label = String(record[field] || "Sem informacao").trim() || "Sem informacao";
+        const key = normalizeText(label);
+        const current = groups.get(key) || { label, count: 0 };
+        current.count += 1;
+        groups.set(key, current);
+      });
+
+      return Array.from(groups.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.label.localeCompare(b.label, "pt-BR");
+      });
+    };
+
+    const renderSelectOptions = () => {
+      const currentType = state.filters.type;
+      const currentLocal = state.filters.local;
+
+      els.filterType.innerHTML = `<option value="">Todos os tipos</option>${getUniqueValues("tipo")
+        .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("")}`;
+
+      els.filterLocal.innerHTML = `<option value="">Todos os locais</option>${getUniqueValues("local")
+        .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("")}`;
+
+      els.filterType.value = currentType;
+      els.filterLocal.value = currentLocal;
+    };
+
+    const renderCalendar = () => {
+      const today = todayInputValue();
+      const recordsByDate = getRecordsByDate();
+      const firstDay = new Date(state.viewYear, state.viewMonth, 1);
+      const start = new Date(firstDay);
+      start.setDate(1 - firstDay.getDay());
+      const currentMonthKey = `${state.viewYear}-${String(state.viewMonth + 1).padStart(2, "0")}`;
+      const todayDate = inputValueToDate(today);
+      const isCurrentOrFutureMonth =
+        state.viewYear > todayDate.getFullYear() ||
+        (state.viewYear === todayDate.getFullYear() && state.viewMonth >= todayDate.getMonth());
+
+      els.monthTitle.textContent = formatMonthTitle(state.viewYear, state.viewMonth);
+      els.nextMonth.disabled = isCurrentOrFutureMonth;
+
+      const days = [];
+      for (let index = 0; index < 42; index += 1) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        const iso = dateToInputValue(date);
+        const monthKey = iso.slice(0, 7);
+        const count = recordsByDate.get(iso) || 0;
+        const outside = monthKey !== currentMonthKey;
+        const future = iso > today;
+        const selected = iso === state.selectedDate;
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+        const classes = [
+          "day-cell",
+          outside ? "is-outside" : "",
+          future ? "is-future" : "",
+          iso === today ? "is-today" : "",
+          selected ? "is-selected" : "",
+        ].filter(Boolean).join(" ");
+
+        days.push(`
+          <button class="${classes}" type="button" data-date="${iso}" ${future ? "disabled" : ""} title="${formatDateBR(iso)}">
+            <span class="day-number">${day}</span>
+            <span class="day-month">${escapeHtml(month)}</span>
+            ${count ? `<span class="day-count">${count}</span>` : ""}
+          </button>
+        `);
+      }
+
+      els.calendarGrid.innerHTML = days.join("");
+    };
+
+    const renderCounts = (container, groups) => {
+      if (!groups.length) {
+        container.innerHTML = `<div class="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm font-bold text-slate-500">Nenhum dado para contabilizar.</div>`;
+        return;
+      }
+
+      const max = Math.max(...groups.map((group) => group.count), 1);
+      container.innerHTML = groups.slice(0, 8).map((group) => {
+        const width = Math.max(6, Math.round((group.count / max) * 100));
+        return `
+          <div class="count-line">
+            <div class="min-w-0 truncate font-black text-slate-700" title="${escapeHtml(group.label)}">${escapeHtml(group.label)}</div>
+            <div class="count-track" aria-hidden="true">
+              <div class="count-fill" style="width: ${width}%"></div>
+            </div>
+            <div class="text-right font-black text-[#004587]">${group.count}</div>
+          </div>
+        `;
+      }).join("");
+    };
+
+    const renderTable = (items) => {
+      els.tableTitle.textContent = state.selectedDate
+        ? `Demandas de ${formatDateBR(state.selectedDate)}`
+        : "Demandas cadastradas";
+
+      if (!items.length) {
+        els.tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center">
+              <div class="py-8 text-sm font-bold text-slate-500">Nenhum registro encontrado.</div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      els.tableBody.innerHTML = items.map((record) => `
+        <tr data-id="${escapeHtml(record.id)}">
+          <td class="whitespace-nowrap font-black text-[#004587]">${formatDateBR(record.data)}</td>
+          <td>${escapeHtml(record.local)}</td>
+          <td class="font-bold">${escapeHtml(record.assunto)}</td>
+          <td>${escapeHtml(record.tipo)}</td>
+          <td class="no-print-area">
+            <div class="row-actions">
+              <button class="icon-btn" type="button" data-action="edit" data-id="${escapeHtml(record.id)}" title="Editar">
+                <i data-lucide="pencil" width="15" height="15"></i>
+              </button>
+              <button class="icon-btn" type="button" data-action="delete" data-id="${escapeHtml(record.id)}" title="Excluir">
+                <i data-lucide="trash-2" width="15" height="15"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join("");
+    };
+
+    const render = () => {
+      renderSelectOptions();
+      renderCalendar();
+
+      const filtered = getFilteredRecords();
+      const today = todayInputValue();
+      const todayRecords = state.records.filter((record) => record.data === today);
+      const monthRecords = getMonthRecords();
+      const typeGroups = aggregateBy(filtered, "tipo");
+      const localGroups = aggregateBy(filtered, "local");
+
+      els.statFiltered.textContent = filtered.length;
+      els.statMonth.textContent = monthRecords.length;
+      els.statToday.textContent = todayRecords.length;
+      els.statTypes.textContent = typeGroups.length;
+
+      renderCounts(els.countType, typeGroups);
+      renderCounts(els.countLocal, localGroups);
+      renderTable(filtered);
+
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    const resetForm = (keepSelectedDate = true) => {
+      state.editingId = null;
+      els.form.reset();
+      els.data.value = keepSelectedDate && state.selectedDate ? state.selectedDate : todayInputValue();
+      els.formTitle.textContent = "Nova demanda";
+      els.submitLabel.innerHTML = `<i data-lucide="save" width="16" height="16"></i>Salvar demanda`;
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    const fillFormForEdit = (id) => {
+      const record = state.records.find((item) => item.id === id);
+      if (!record) return;
+
+      state.editingId = id;
+      els.data.value = record.data;
+      els.local.value = record.local;
+      els.assunto.value = record.assunto;
+      els.tipo.value = record.tipo;
+      els.formTitle.textContent = "Editar demanda";
+      els.submitLabel.innerHTML = `<i data-lucide="save" width="16" height="16"></i>Atualizar demanda`;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    const buildRecordFromForm = () => ({
+      data: els.data.value || todayInputValue(),
+      local: els.local.value.trim(),
+      assunto: els.assunto.value.trim(),
+      tipo: els.tipo.value.trim(),
+    });
+
+    const upsertRecord = (event) => {
+      event.preventDefault();
+      const payload = buildRecordFromForm();
+
+      if (!payload.data || !payload.local || !payload.assunto || !payload.tipo) {
+        alert("Preencha data, local, assunto e tipo.");
+        return;
+      }
+
+      if (isFutureDate(payload.data)) {
+        alert("Este calendario registra apenas demandas ja realizadas. Escolha uma data de hoje ou anterior.");
+        return;
+      }
+
+      if (state.editingId) {
+        state.records = state.records.map((record) =>
+          record.id === state.editingId
+            ? normalizeRecord({ ...record, ...payload, updatedAt: new Date().toISOString() })
+            : record
+        );
+      } else {
+        state.records.push(normalizeRecord({
+          ...payload,
+          id: makeId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+
+      state.selectedDate = payload.data;
+      saveRecords();
+      resetForm();
+      render();
+    };
+
+    const deleteRecord = (id) => {
+      const record = state.records.find((item) => item.id === id);
+      if (!record) return;
+      const confirmed = confirm(`Excluir o registro "${record.assunto}" de ${formatDateBR(record.data)}?`);
+      if (!confirmed) return;
+
+      state.records = state.records.filter((item) => item.id !== id);
+      if (state.editingId === id) resetForm();
+      saveRecords();
+      render();
+    };
+
+    const selectDay = (date) => {
+      if (!date || isFutureDate(date)) return;
+      state.selectedDate = date;
+      els.data.value = date;
+      render();
+    };
+
+    const moveMonth = (direction) => {
+      const next = new Date(state.viewYear, state.viewMonth + direction, 1);
+      state.viewYear = next.getFullYear();
+      state.viewMonth = next.getMonth();
+      render();
+    };
+
+    const goToCurrentMonth = () => {
+      const today = inputValueToDate(todayInputValue());
+      state.viewYear = today.getFullYear();
+      state.viewMonth = today.getMonth();
+      render();
+    };
+
+    const updateFiltersFromInputs = () => {
+      state.filters.search = els.filterSearch.value;
+      state.filters.start = els.filterStart.value;
+      state.filters.end = els.filterEnd.value;
+      state.filters.type = els.filterType.value;
+      state.filters.local = els.filterLocal.value;
+      state.filters.order = els.filterOrder.value;
+      render();
+    };
+
+    const clearSelectedDay = () => {
+      state.selectedDate = "";
+      resetForm(false);
+      render();
+    };
+
+    const clearFilters = () => {
+      state.filters = { search: "", start: "", end: "", type: "", local: "", order: "date-desc" };
+      els.filterSearch.value = "";
+      els.filterStart.value = "";
+      els.filterEnd.value = "";
+      els.filterOrder.value = "date-desc";
+      state.selectedDate = "";
+      resetForm(false);
+      render();
+    };
+
+    const downloadTextFile = (filename, content, mimeType) => {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
+    const exportCsv = () => {
+      const rows = getFilteredRecords();
+      const header = ["data", "local", "assunto", "tipo"];
+      const csvRows = rows.map((record) =>
+        header.map((field) => `"${String(record[field] || "").replaceAll('"', '""')}"`).join(";")
+      );
+      downloadTextFile(
+        `demandas-realizadas-${todayInputValue()}.csv`,
+        `\ufeff${header.join(";")}\n${csvRows.join("\n")}`,
+        "text/csv;charset=utf-8"
+      );
+    };
+
+    const bindEvents = () => {
+      els.form.addEventListener("submit", upsertRecord);
+      els.resetForm.addEventListener("click", () => resetForm());
+      els.previousMonth.addEventListener("click", () => moveMonth(-1));
+      els.nextMonth.addEventListener("click", () => moveMonth(1));
+      els.currentMonth.addEventListener("click", goToCurrentMonth);
+      els.clearDay.addEventListener("click", clearSelectedDay);
+      els.clearFilters.addEventListener("click", clearFilters);
+      els.exportCsv.addEventListener("click", exportCsv);
+
+      els.data.addEventListener("change", () => {
+        if (els.data.value && !isFutureDate(els.data.value)) {
+          state.selectedDate = els.data.value;
+          const selected = inputValueToDate(els.data.value);
+          state.viewYear = selected.getFullYear();
+          state.viewMonth = selected.getMonth();
+          render();
+        }
+      });
+
+      els.calendarGrid.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-date]");
+        if (!button || button.disabled) return;
+        selectDay(button.getAttribute("data-date"));
+      });
+
+      [els.filterSearch, els.filterStart, els.filterEnd, els.filterType, els.filterLocal, els.filterOrder]
+        .forEach((input) => input.addEventListener("input", updateFiltersFromInputs));
+
+      els.tableBody.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-action]");
+        if (!button) return;
+        const id = button.getAttribute("data-id");
+        const action = button.getAttribute("data-action");
+        if (action === "edit") fillFormForEdit(id);
+        if (action === "delete") deleteRecord(id);
+      });
+
+      els.deleteAll.addEventListener("click", () => {
+        if (!state.records.length) return;
+        const confirmed = confirm("Apagar todos os registros deste calendario?");
+        if (!confirmed) return;
+        state.records = [];
+        state.selectedDate = "";
+        resetForm(false);
+        saveRecords();
+        render();
+      });
+    };
+
+    const init = () => {
+      const today = inputValueToDate(todayInputValue());
+      state.records = loadRecords();
+      state.viewYear = today.getFullYear();
+      state.viewMonth = today.getMonth();
+      els.data.max = todayInputValue();
+      els.filterStart.max = todayInputValue();
+      els.filterEnd.max = todayInputValue();
+      els.data.value = todayInputValue();
+      bindEvents();
+      render();
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    init();
+  </script>
+</body>
+</html>
