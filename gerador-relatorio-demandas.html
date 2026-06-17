@@ -150,9 +150,29 @@
       return `${(kb / 1024).toFixed(2)} MB`;
     };
 
+    const getCleanCoordinates = (value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const match = raw.match(/-?\d+\.\d+,\s*-?\d+\.\d+/);
+      return match ? match[0].replace(/\s/g, "") : raw;
+    };
+
+    const buildMapEmbedUrl = (coordinates) => {
+      const cleanCoordinates = getCleanCoordinates(coordinates);
+      return cleanCoordinates
+        ? `https://maps.google.com/maps?q=${encodeURIComponent(cleanCoordinates)}&t=m&z=17&output=embed&iwloc=near`
+        : "";
+    };
+
+    const getDemandDisplayTitle = (item, index) =>
+      String(item?.rotulo || "").trim() || `Demanda ${String(index + 1).padStart(2, "0")}`;
+
     const createEmptyDemandItem = () => ({
       id: generateId(),
+      rotulo: "",
       titulo: "",
+      local: "",
+      coordenadas: "",
       descricao: "",
       fotos: [],
     });
@@ -171,7 +191,10 @@
 
     const normalizeDemandItem = (item) => ({
       id: item?.id || generateId(),
+      rotulo: String(item?.rotulo || ""),
       titulo: String(item?.titulo || ""),
+      local: String(item?.local || ""),
+      coordenadas: String(item?.coordenadas || ""),
       descricao: String(item?.descricao || ""),
       fotos: Array.isArray(item?.fotos) ? item.fotos.map(normalizePhoto).filter(Boolean) : [],
     });
@@ -239,6 +262,7 @@
     const Save = (p) => <LucideIcon name="Save" {...p} />;
     const ShieldCheck = (p) => <LucideIcon name="ShieldCheck" {...p} />;
     const ClipboardCheck = (p) => <LucideIcon name="ClipboardCheck" {...p} />;
+    const MapPin = (p) => <LucideIcon name="MapPin" {...p} />;
 
     const SectionTitle = ({ icon: Icon, children }) => (
       <h2 className="text-[12px] font-black text-[#004587] uppercase tracking-wider flex items-center gap-2 border-b pb-2">
@@ -299,13 +323,14 @@
       onRemovePhoto,
     }) => {
       const totalBytes = item.fotos.reduce((sum, photo) => sum + (photo.bytes || 0), 0);
+      const demandTitle = getDemandDisplayTitle(item, index);
 
       return (
         <article className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Conjunto</p>
-              <h3 className="text-base font-black text-[#004587]">Demanda {String(index + 1).padStart(2, "0")}</h3>
+              <h3 className="text-base font-black text-[#004587]">{demandTitle}</h3>
             </div>
             <button
               type="button"
@@ -319,12 +344,37 @@
           </div>
 
           <TextField
+            label="Titulo do bloco"
+            value={item.rotulo}
+            onChange={(e) => onChangeField(item.id, "rotulo", e.target.value)}
+            placeholder={demandTitle}
+            disabled={disabled}
+          />
+
+          <TextField
             label="Titulo da demanda"
             value={item.titulo}
             onChange={(e) => onChangeField(item.id, "titulo", e.target.value)}
             placeholder="Ex: Parquinho"
             disabled={disabled}
           />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <TextField
+              label="Localizacao independente"
+              value={item.local}
+              onChange={(e) => onChangeField(item.id, "local", e.target.value)}
+              placeholder="Ex: SQN 302, Bloco B"
+              disabled={disabled}
+            />
+            <TextField
+              label="Coordenadas"
+              value={item.coordenadas}
+              onChange={(e) => onChangeField(item.id, "coordenadas", e.target.value)}
+              placeholder="Lat, Long do Google Maps"
+              disabled={disabled}
+            />
+          </div>
 
           <TextareaField
             label="Descricao do que precisa ser feito"
@@ -525,7 +575,13 @@
       const visibleDemandItems = useMemo(
         () =>
           deferredDemandItems.filter(
-            (item) => item.titulo.trim() || item.descricao.trim() || item.fotos.length > 0
+            (item) =>
+              item.rotulo.trim() ||
+              item.titulo.trim() ||
+              item.local.trim() ||
+              item.coordenadas.trim() ||
+              item.descricao.trim() ||
+              item.fotos.length > 0
           ),
         [deferredDemandItems]
       );
@@ -544,13 +600,23 @@
         [demandItems]
       );
 
+      const coverTitle = useMemo(
+        () => String(reportMeta.tituloRelatorio || "").trim() || DEFAULT_META.tituloRelatorio,
+        [reportMeta.tituloRelatorio]
+      );
+
       const coverSubtitle = useMemo(
+        () => String(reportMeta.setor || "").trim(),
+        [reportMeta.setor]
+      );
+
+      const coverMetaLine = useMemo(
         () =>
-          [reportMeta.localGeral, reportMeta.responsavel]
+          [reportMeta.localGeral, reportMeta.numeroProcesso]
             .map((item) => String(item || "").trim())
             .filter(Boolean)
             .join(" • "),
-        [reportMeta.localGeral, reportMeta.responsavel]
+        [reportMeta.localGeral, reportMeta.numeroProcesso]
       );
 
       // Mantem o bloco de contato proporcional quando apenas um campo estiver preenchido.
@@ -687,26 +753,102 @@
             windowHeight: target.scrollHeight,
           });
 
-        const addLongCanvas = (canvas, startOnNewPage = false) => {
+        const addCanvasAcrossPages = (canvas, options = {}) => {
           const imgData = canvas.toDataURL("image/jpeg", 0.98);
-          const imgWidth = pageWidth;
+          const imgWidth = options.imgWidth || pageWidth;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          let heightLeft = imgHeight;
-          let position = 0;
+          const marginX = options.marginX || 0;
+          const pageTop = options.pageTop || 0;
+          const pageBottom = options.pageBottom || 0;
+          let currentY = options.startY || 0;
+          let consumedHeight = 0;
+          let remainingHeight = imgHeight;
+          let lastUsedHeight = 0;
 
-          if (startOnNewPage) {
+          if (options.startOnNewPage) {
             pdf.addPage();
           }
 
-          pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-
-          while (heightLeft > 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
+          while (remainingHeight > 0) {
+            if (consumedHeight > 0) {
+              currentY = pageTop;
+              pdf.addPage();
+            }
+            pdf.addImage(imgData, "JPEG", marginX, currentY - consumedHeight, imgWidth, imgHeight);
+            const availableHeight = pageHeight - currentY - pageBottom;
+            lastUsedHeight = Math.min(remainingHeight, availableHeight);
+            consumedHeight += availableHeight;
+            remainingHeight -= availableHeight;
           }
+
+          return currentY + lastUsedHeight;
+        };
+
+        const addBodyBlocks = async (bodyEl, startOnNewPage = true) => {
+          const margin = 10;
+          const gap = 5;
+          const contentWidth = pageWidth - margin * 2;
+          const bottomLimit = pageHeight - margin;
+          const usableHeight = pageHeight - margin * 2;
+          let cursorY = margin;
+          let bodyPageStarted = !startOnNewPage;
+
+          const ensureBodyPage = () => {
+            if (!bodyPageStarted) {
+              pdf.addPage();
+              bodyPageStarted = true;
+              cursorY = margin;
+            }
+          };
+
+          const addBlockCanvas = (canvas) => {
+            ensureBodyPage();
+            const imgData = canvas.toDataURL("image/jpeg", 0.98);
+            const imgHeight = (canvas.height * contentWidth) / canvas.width;
+
+            if (imgHeight <= usableHeight) {
+              if (cursorY + imgHeight > bottomLimit && cursorY > margin) {
+                pdf.addPage();
+                cursorY = margin;
+              }
+              pdf.addImage(imgData, "JPEG", margin, cursorY, contentWidth, imgHeight);
+              cursorY += imgHeight + gap;
+              return;
+            }
+
+            if (cursorY > margin) {
+              pdf.addPage();
+              cursorY = margin;
+            }
+
+            cursorY =
+              addCanvasAcrossPages(canvas, {
+                marginX: margin,
+                startY: cursorY,
+                imgWidth: contentWidth,
+                pageTop: margin,
+                pageBottom: margin,
+              }) + gap;
+          };
+
+          const blocks = Array.from(bodyEl.querySelectorAll("[data-pdf-block='true']")).filter(
+            (block) => block.getBoundingClientRect().height > 0
+          );
+
+          if (!blocks.length) {
+            const canvas = await renderCanvas(bodyEl);
+            addCanvasAcrossPages(canvas, { startOnNewPage, pageBottom: 0 });
+            return;
+          }
+
+          for (const block of blocks) {
+            const canvas = await renderCanvas(block);
+            addBlockCanvas(canvas);
+          }
+        };
+
+        const addLongCanvas = (canvas, startOnNewPage = false) => {
+          addCanvasAcrossPages(canvas, { startOnNewPage });
         };
 
         const coverEl = el.querySelector("[data-pdf-cover]");
@@ -717,8 +859,7 @@
           const coverData = coverCanvas.toDataURL("image/jpeg", 0.98);
           pdf.addImage(coverData, "JPEG", 0, 0, pageWidth, pageHeight);
 
-          const bodyCanvas = await renderCanvas(bodyEl);
-          addLongCanvas(bodyCanvas, true);
+          await addBodyBlocks(bodyEl, true);
         } else {
           const canvas = await renderCanvas(el);
           addLongCanvas(canvas, false);
@@ -781,7 +922,7 @@
                     <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Novo fluxo</p>
                     <h1 className="text-2xl font-black text-[#004587] leading-tight">Relatorio de Demandas</h1>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                      Monte blocos repetiveis com titulo, descricao e varias imagens para cada demanda.
+                      Monte blocos repetiveis com titulo, localizacao, descricao e varias imagens para cada demanda.
                     </p>
                   </div>
                   {autoSaved && (
@@ -913,22 +1054,17 @@
                   </div>
 
                   <div className="report-cover-main">
-                    <p className="report-cover-kicker">Relatorio Institucional</p>
+                    <p className="report-cover-kicker">Relatorio Tecnico</p>
                     <div className="report-cover-divider"></div>
-                    <h3 className="report-cover-title">{reportMeta.tituloRelatorio}</h3>
+                    <h3 className="report-cover-title">{coverTitle}</h3>
                     {coverSubtitle && <p className="report-cover-subtitle">{coverSubtitle}</p>}
+                    {coverMetaLine && <p className="report-cover-subtitle">{coverMetaLine}</p>}
                   </div>
 
                   <div>
                     <div className="report-cover-footer">
                       <span className="report-cover-footer-line">Brasilia - DF</span>
                       <span className="report-cover-footer-line">{formatDateBR(reportMeta.data)}</span>
-                      {reportMeta.localGeral.trim() && (
-                        <span className="report-cover-footer-line">Local da demanda: {reportMeta.localGeral}</span>
-                      )}
-                      {reportMeta.numeroProcesso.trim() && (
-                        <span className="report-cover-footer-line">Numero de processo: {reportMeta.numeroProcesso}</span>
-                      )}
                     </div>
                     {hasContactData && (
                       <div className={`report-cover-summary report-cover-summary--contact${isSingleContactField ? " report-cover-summary--compact" : ""}`}>
@@ -943,7 +1079,7 @@
                 </div>
 
                 <div className="report-document-body page-content mx-auto bg-white p-4 md:p-8" data-pdf-body="true">
-                  <div className="mb-4 border-b border-slate-100 pb-3 avoid-break">
+                  <div className="mb-4 border-b border-slate-100 pb-3 avoid-break" data-pdf-block="true">
                     <div className="flex items-center gap-2 mb-3 px-2 font-black text-[#004587] text-[11px] tracking-[0.16em] uppercase">
                       <ShieldCheck size={14} />
                       1. Identificacao do Relatorio
@@ -958,6 +1094,13 @@
                         <div>
                           <span className="block font-black text-[#004587] uppercase text-[9px] mb-0.5 opacity-70">Local geral</span>
                           <span className="font-bold text-slate-900 leading-tight">{reportMeta.localGeral}</span>
+                        </div>
+                      )}
+
+                      {reportMeta.numeroProcesso.trim() && (
+                        <div>
+                          <span className="block font-black text-[#004587] uppercase text-[9px] mb-0.5 opacity-70">Processo SEI</span>
+                          <span className="font-bold text-slate-900 leading-tight">{reportMeta.numeroProcesso}</span>
                         </div>
                       )}
 
@@ -985,31 +1128,69 @@
                   </div>
 
                   <div className="avoid-break">
-                    <div className="border-b-2 border-[#004587] mb-3 pb-1 font-black uppercase text-[#004587] text-[12px] flex items-center gap-2 tracking-wide">
+                    <div className="border-b-2 border-[#004587] mb-3 pb-1 font-black uppercase text-[#004587] text-[12px] flex items-center gap-2 tracking-wide" data-pdf-block="true">
                       <ClipboardCheck size={14} />
                       2. Demandas registradas
                     </div>
 
                     {visibleDemandItems.length === 0 ? (
-                      <div className="p-4 bg-slate-50 rounded-2xl text-[13px] leading-relaxed text-slate-600 italic">
+                      <div className="p-4 bg-slate-50 rounded-2xl text-[13px] leading-relaxed text-slate-600 italic" data-pdf-block="true">
                         Nenhuma demanda preenchida ate o momento.
                       </div>
                     ) : (
                       <div className="space-y-5">
                         {visibleDemandItems.map((item, index) => {
                           const gridClass = item.fotos.length <= 1 ? "grid-cols-1" : "grid-cols-2";
+                          const demandMapUrl = buildMapEmbedUrl(item.coordenadas);
+                          const hasDemandLocation = item.local.trim() || item.coordenadas.trim();
+                          const demandTitle = getDemandDisplayTitle(item, index);
 
                           return (
-                            <section key={item.id} className="avoid-break rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
+                            <section key={item.id} className="avoid-break rounded-2xl border border-slate-200 bg-white shadow-sm p-4" data-pdf-block="true">
                               <div className="flex items-center gap-2 mb-3 font-black text-[#004587] text-[11px] tracking-[0.16em] uppercase">
                                 <LayoutGrid size={14} />
-                                Demanda {String(index + 1).padStart(2, "0")}
+                                {demandTitle}
                               </div>
 
                               {item.titulo.trim() && (
                                 <div className="mb-3">
                                   <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Titulo</p>
                                   <p className="text-base font-black text-slate-900">{item.titulo}</p>
+                                </div>
+                              )}
+
+                              {hasDemandLocation && (
+                                <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {item.local.trim() && (
+                                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Localizacao</p>
+                                      <p className="text-[12px] font-bold text-slate-900 leading-relaxed">{item.local}</p>
+                                    </div>
+                                  )}
+                                  {item.coordenadas.trim() && (
+                                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Coordenadas</p>
+                                      <p className="text-[12px] font-bold text-slate-900 leading-relaxed font-mono">{getCleanCoordinates(item.coordenadas)}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {demandMapUrl && (
+                                <div className="mb-3 avoid-break">
+                                  <div className="flex items-center gap-2 mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                                    <MapPin size={12} />
+                                    Mapa de referencia
+                                  </div>
+                                  <div className="w-full border rounded-xl overflow-hidden bg-slate-50 shadow-inner" style={{ aspectRatio: "16 / 9" }}>
+                                    <iframe
+                                      width="100%"
+                                      height="100%"
+                                      frameBorder="0"
+                                      src={demandMapUrl}
+                                      title={`Mapa da demanda ${index + 1}`}
+                                    ></iframe>
+                                  </div>
                                 </div>
                               )}
 
@@ -1054,7 +1235,7 @@
                     )}
                   </div>
 
-                  <div className="mt-8 pt-4 avoid-break w-full flex flex-col items-center justify-center text-center">
+                  <div className="mt-8 pt-4 avoid-break w-full flex flex-col items-center justify-center text-center" data-pdf-block="true">
                     <div className="mb-8 text-[11px] text-slate-600">Brasilia - DF, {formatDateBR(reportMeta.data)}</div>
                     <div className="w-64 h-[1px] bg-slate-400 mb-2"></div>
                     {reportMeta.responsavel.trim() && (
