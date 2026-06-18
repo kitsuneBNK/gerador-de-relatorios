@@ -1850,6 +1850,31 @@
       return isValidIsoDate(isoDate) ? isoDate : "";
     };
 
+    const getDateRange = (start, end) => {
+      const dates = [];
+      if (!start || !end) return dates;
+
+      const rangeStart = start <= end ? start : end;
+      const rangeEnd = start <= end ? end : start;
+      const current = inputValueToDate(rangeStart);
+      const last = inputValueToDate(rangeEnd);
+      if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) return dates;
+
+      while (current <= last) {
+        dates.push(dateToInputValue(current));
+        current.setDate(current.getDate() + 1);
+      }
+
+      return dates;
+    };
+
+    const isWeekendDate = (isoDate) => {
+      const date = inputValueToDate(isoDate);
+      if (Number.isNaN(date.getTime())) return false;
+      const weekDay = date.getDay();
+      return weekDay === 0 || weekDay === 6;
+    };
+
     const parseImportedDates = (value) => {
       const text = String(value || "").trim();
       if (!text) return [];
@@ -1887,18 +1912,30 @@
       let imported = 0;
       let merged = 0;
       let duplicated = 0;
+      let weekendIgnored = 0;
       let invalid = 0;
 
       rows.slice(1).forEach((row) => {
         const importedDates = parseImportedDates(row[indexes.data]);
         const endDate = indexes.dataFim >= 0 ? parseImportedDate(row[indexes.dataFim]) : "";
-        const rowDates = uniqueSortedDates([...importedDates, endDate].filter(Boolean));
-        const validDates = uniqueSortedDates(rowDates).filter((date) => !isFutureDate(date));
+        // Nas tabelas com data_inicio/data_fim, a linha representa um periodo ativo.
+        const rowDates = endDate && importedDates.length
+          ? getDateRange(importedDates[0], endDate)
+          : uniqueSortedDates([...importedDates, endDate].filter(Boolean));
         const local = String(row[indexes.local] || "").trim();
         const tipo = String(row[indexes.tipo] || "").trim();
 
-        if (!validDates.length || !local || !tipo) {
+        if (!rowDates.length || !local || !tipo) {
           invalid += 1;
+          return;
+        }
+
+        const pastDates = uniqueSortedDates(rowDates).filter((date) => !isFutureDate(date));
+        const validDates = pastDates.filter((date) => !isWeekendDate(date));
+        weekendIgnored += pastDates.length - validDates.length;
+
+        if (!validDates.length) {
+          if (!pastDates.length) invalid += 1;
           return;
         }
 
@@ -1937,7 +1974,7 @@
         render();
       }
 
-      alert(`Importacao concluida.\nRegistros importados: ${imported}\nRegistros agrupados por dias consecutivos: ${merged}\nDuplicados ignorados: ${duplicated}\nLinhas invalidas ignoradas: ${invalid}`);
+      alert(`Importacao concluida.\nRegistros importados: ${imported}\nRegistros agrupados por dias consecutivos: ${merged}\nDuplicados ignorados: ${duplicated}\nDatas de fim de semana ignoradas: ${weekendIgnored}\nLinhas invalidas ignoradas: ${invalid}`);
     };
 
     const importCsvFile = (event) => {
