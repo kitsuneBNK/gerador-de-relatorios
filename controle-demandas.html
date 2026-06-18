@@ -1850,24 +1850,6 @@
       return isValidIsoDate(isoDate) ? isoDate : "";
     };
 
-    const getDateRange = (start, end) => {
-      const dates = [];
-      if (!start || !end) return dates;
-
-      const rangeStart = start <= end ? start : end;
-      const rangeEnd = start <= end ? end : start;
-      const current = inputValueToDate(rangeStart);
-      const last = inputValueToDate(rangeEnd);
-      if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) return dates;
-
-      while (current <= last) {
-        dates.push(dateToInputValue(current));
-        current.setDate(current.getDate() + 1);
-      }
-
-      return dates;
-    };
-
     const parseImportedDates = (value) => {
       const text = String(value || "").trim();
       if (!text) return [];
@@ -1875,12 +1857,6 @@
       const datePattern = /\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{4}/g;
       const matches = text.match(datePattern) || [];
       const parsed = matches.map(parseImportedDate).filter(Boolean);
-      const normalizedText = normalizeText(text).replace(/[\u2013\u2014]/g, "-");
-      const hasRangeConnector = /\s(a|ate|-)\s/i.test(normalizedText);
-
-      if (parsed.length >= 2 && hasRangeConnector) {
-        return getDateRange(parsed[0], parsed[parsed.length - 1]);
-      }
 
       return uniqueSortedDates(parsed);
     };
@@ -1916,9 +1892,7 @@
       rows.slice(1).forEach((row) => {
         const importedDates = parseImportedDates(row[indexes.data]);
         const endDate = indexes.dataFim >= 0 ? parseImportedDate(row[indexes.dataFim]) : "";
-        const rowDates = endDate && importedDates.length
-          ? getDateRange(importedDates[0], endDate)
-          : importedDates;
+        const rowDates = uniqueSortedDates([...importedDates, endDate].filter(Boolean));
         const validDates = uniqueSortedDates(rowDates).filter((date) => !isFutureDate(date));
         const local = String(row[indexes.local] || "").trim();
         const tipo = String(row[indexes.tipo] || "").trim();
