@@ -135,6 +135,28 @@
       color: var(--app-text-muted);
     }
 
+    .import-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      border: 1px solid #dbe4ee;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 8px 12px;
+      color: #475569;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .import-option input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--app-accent);
+    }
+
     .month-grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -392,6 +414,12 @@
       background: #07111f;
       color: var(--app-text);
       border-color: var(--app-border);
+    }
+
+    .dark .import-option {
+      background: #0b1628;
+      border-color: var(--app-border);
+      color: var(--app-text-muted);
     }
 
     .dark .count-track {
@@ -676,6 +704,28 @@
             </div>
           </div>
 
+          <label class="import-option" title="Remove apenas os registros dos dias presentes na tabela antes de importar.">
+            <input id="replace-import-dates" type="checkbox" />
+            Substituir dias importados
+          </label>
+
+          <div class="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+            <label>
+              <span class="calendar-label">Colar lista corrigida</span>
+              <textarea id="bulk-text" class="calendar-field min-h-[112px] resize-y" placeholder="05/01&#10;- Zeladoria na SQS 303&#10;- Recolhimento de residuos no SRTVS"></textarea>
+            </label>
+            <div class="flex flex-col gap-2 lg:self-end">
+              <button id="import-text" class="calendar-btn calendar-btn-primary" type="button">
+                <i data-lucide="clipboard-check" width="15" height="15"></i>
+                Importar texto
+              </button>
+              <button id="clear-text" class="calendar-btn calendar-btn-ghost" type="button">
+                <i data-lucide="eraser" width="15" height="15"></i>
+                Limpar texto
+              </button>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
             <label class="xl:col-span-2">
               <span class="calendar-label">Busca livre</span>
@@ -844,6 +894,10 @@
       clearFilters: document.getElementById("clear-filters"),
       importCsv: document.getElementById("import-csv"),
       importFile: document.getElementById("import-file"),
+      bulkText: document.getElementById("bulk-text"),
+      importText: document.getElementById("import-text"),
+      clearText: document.getElementById("clear-text"),
+      replaceImportDates: document.getElementById("replace-import-dates"),
       exportCsv: document.getElementById("export-csv"),
       deleteAll: document.getElementById("delete-all"),
       statFiltered: document.getElementById("stat-filtered"),
@@ -1886,6 +1940,155 @@
       return uniqueSortedDates(parsed);
     };
 
+    const removeExistingDatesFromRecords = (datesToReplace) => {
+      let removed = 0;
+
+      state.records = state.records.flatMap((record) => {
+        const currentDates = getRegisteredDates(record);
+        const keptDates = currentDates.filter((date) => !datesToReplace.has(date));
+        removed += currentDates.length - keptDates.length;
+
+        if (!keptDates.length) return [];
+        return buildRecordsFromDateGroups(record, keptDates);
+      });
+
+      state.records = consolidateRecords(state.records);
+      return removed;
+    };
+
+    const commitImportedRecords = (pendingRecords, affectedDates) => {
+      let imported = 0;
+      let merged = 0;
+      let duplicated = 0;
+      let replacedExisting = 0;
+      const shouldReplaceDates = Boolean(els.replaceImportDates && els.replaceImportDates.checked);
+
+      if (shouldReplaceDates && pendingRecords.length) {
+        const confirmed = confirm(`Substituir os registros existentes em ${affectedDates.size} dia(s) da importacao?`);
+        if (!confirmed) return null;
+        replacedExisting = removeExistingDatesFromRecords(affectedDates);
+      }
+
+      pendingRecords.forEach((record) => {
+        if (hasDuplicateRecord(record)) {
+          duplicated += 1;
+          return;
+        }
+
+        imported += 1;
+        const mergeResult = mergeRecordIntoState(record);
+
+        if (mergeResult.merged) {
+          merged += 1;
+          return;
+        }
+
+        state.records.push(record);
+      });
+
+      if (imported > 0 || merged > 0 || replacedExisting > 0) {
+        state.selectedDate = "";
+        saveRecords();
+        resetForm(false);
+        render();
+      }
+
+      return { imported, merged, duplicated, replacedExisting };
+    };
+
+    const cleanDemandLine = (value) =>
+      String(value || "")
+        .replace(/^[\s\-\u2013\u2014\u2022]+/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const parseDemandListDateLine = (line) => {
+      const match = String(line || "").trim().match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?:\s*[-:\u2013\u2014]\s*)?(.*)$/);
+      if (!match) return { date: "", text: "" };
+
+      const rawYear = match[3] || String(inputValueToDate(todayInputValue()).getFullYear());
+      const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+      return {
+        date: parseImportedDate(`${match[1]}/${match[2]}/${year}`),
+        text: cleanDemandLine(match[4]),
+      };
+    };
+
+    const inferDemandFieldsFromText = (text) => {
+      const clean = cleanDemandLine(text);
+      const primaryMatch = clean.match(/^(.+)\s+(?:na|no|nas|nos|em|ao|para|p\/)\s+(.+)$/i);
+      const fallbackMatch = clean.match(/^(.+)\s+(?:da|do|das|dos|de)\s+(.+)$/i);
+      const match = primaryMatch || fallbackMatch;
+
+      return {
+        tipo: match ? match[1].trim() : clean,
+        local: match ? match[2].trim() : "Sem local informado",
+      };
+    };
+
+    const importTextList = () => {
+      const text = String(els.bulkText.value || "").trim();
+      if (!text) {
+        alert("Cole uma lista de demandas antes de importar.");
+        return;
+      }
+
+      let currentDate = "";
+      let invalid = 0;
+      let weekendIgnored = 0;
+      const pendingRecords = [];
+      const affectedDates = new Set();
+
+      text.split(/\r?\n/).forEach((rawLine) => {
+        const line = String(rawLine || "").trim();
+        if (!line) return;
+
+        const dateLine = parseDemandListDateLine(line);
+        if (dateLine.date) {
+          currentDate = dateLine.date;
+          if (!dateLine.text) return;
+        }
+
+        const demandText = dateLine.date ? dateLine.text : cleanDemandLine(line);
+        if (!currentDate || !demandText) {
+          invalid += 1;
+          return;
+        }
+
+        if (isFutureDate(currentDate)) {
+          invalid += 1;
+          return;
+        }
+
+        if (isWeekendDate(currentDate)) {
+          weekendIgnored += 1;
+          return;
+        }
+
+        const fields = inferDemandFieldsFromText(demandText);
+        if (!fields.tipo || !fields.local) {
+          invalid += 1;
+          return;
+        }
+
+        pendingRecords.push(normalizeRecord({
+          id: makeId(),
+          data: currentDate,
+          local: fields.local,
+          assunto: "",
+          tipo: fields.tipo,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        affectedDates.add(currentDate);
+      });
+
+      const result = commitImportedRecords(pendingRecords, affectedDates);
+      if (!result) return;
+
+      alert(`Importacao por texto concluida.\nDias lidos: ${affectedDates.size}\nRegistros importados: ${result.imported}\nRegistros agrupados por dias consecutivos: ${result.merged}\nDuplicados ignorados: ${result.duplicated}\nDatas de fim de semana ignoradas: ${weekendIgnored}\nLancamentos antigos removidos: ${result.replacedExisting}\nLinhas invalidas ignoradas: ${invalid}`);
+    };
+
     const importCsvText = (text) => {
       const delimiter = detectCsvDelimiter(text);
       const rows = parseCsvRows(text, delimiter);
@@ -1909,19 +2112,18 @@
         return;
       }
 
-      let imported = 0;
-      let merged = 0;
-      let duplicated = 0;
       let weekendIgnored = 0;
       let invalid = 0;
+      const pendingRecords = [];
+      const affectedDates = new Set();
 
       rows.slice(1).forEach((row) => {
-        const importedDates = parseImportedDates(row[indexes.data]);
+        const rowImportedDates = parseImportedDates(row[indexes.data]);
         const endDate = indexes.dataFim >= 0 ? parseImportedDate(row[indexes.dataFim]) : "";
         // Nas tabelas com data_inicio/data_fim, a linha representa um periodo ativo.
-        const rowDates = endDate && importedDates.length
-          ? getDateRange(importedDates[0], endDate)
-          : uniqueSortedDates([...importedDates, endDate].filter(Boolean));
+        const rowDates = endDate && rowImportedDates.length
+          ? getDateRange(rowImportedDates[0], endDate)
+          : uniqueSortedDates([...rowImportedDates, endDate].filter(Boolean));
         const local = String(row[indexes.local] || "").trim();
         const tipo = String(row[indexes.tipo] || "").trim();
 
@@ -1940,7 +2142,7 @@
         }
 
         validDates.forEach((data) => {
-          const record = normalizeRecord({
+          pendingRecords.push(normalizeRecord({
             id: makeId(),
             data,
             local,
@@ -1948,33 +2150,15 @@
             tipo,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          });
-
-          if (hasDuplicateRecord(record)) {
-            duplicated += 1;
-            return;
-          }
-
-          imported += 1;
-          const mergeResult = mergeRecordIntoState(record);
-
-          if (mergeResult.merged) {
-            merged += 1;
-            return;
-          }
-
-          state.records.push(record);
+          }));
+          affectedDates.add(data);
         });
       });
 
-      if (imported > 0 || merged > 0) {
-        state.selectedDate = "";
-        saveRecords();
-        resetForm(false);
-        render();
-      }
+      const result = commitImportedRecords(pendingRecords, affectedDates);
+      if (!result) return;
 
-      alert(`Importacao concluida.\nRegistros importados: ${imported}\nRegistros agrupados por dias consecutivos: ${merged}\nDuplicados ignorados: ${duplicated}\nDatas de fim de semana ignoradas: ${weekendIgnored}\nLinhas invalidas ignoradas: ${invalid}`);
+      alert(`Importacao concluida.\nDias lidos da tabela: ${affectedDates.size}\nRegistros importados: ${result.imported}\nRegistros agrupados por dias consecutivos: ${result.merged}\nDuplicados ignorados: ${result.duplicated}\nDatas de fim de semana ignoradas: ${weekendIgnored}\nLancamentos antigos removidos: ${result.replacedExisting}\nLinhas invalidas ignoradas: ${invalid}`);
     };
 
     const importCsvFile = (event) => {
@@ -2058,6 +2242,10 @@
       els.clearFilters.addEventListener("click", clearFilters);
       els.importCsv.addEventListener("click", () => els.importFile.click());
       els.importFile.addEventListener("change", importCsvFile);
+      els.importText.addEventListener("click", importTextList);
+      els.clearText.addEventListener("click", () => {
+        els.bulkText.value = "";
+      });
       els.exportCsv.addEventListener("click", exportCsv);
 
       els.data.addEventListener("change", () => {
