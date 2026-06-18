@@ -750,7 +750,7 @@
             </label>
             <label class="md:col-span-1 xl:col-span-2">
               <span class="calendar-label">Tipo</span>
-              <select id="filter-type" class="calendar-field">
+              <select id="filter-type" class="calendar-field" multiple size="5" title="Selecione um ou mais tipos">
                 <option value="">Todos os tipos</option>
               </select>
             </label>
@@ -861,7 +861,7 @@
         search: "",
         start: "",
         end: "",
-        type: "",
+        type: [],
         local: "",
         order: "date-desc",
       },
@@ -1270,9 +1270,24 @@
       return Array.from(values.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
     };
 
+    const getSelectedOptionValues = (select) =>
+      Array.from(select.selectedOptions || []).map((option) => option.value).filter(Boolean);
+
+    const getFilterTypes = () => {
+      if (Array.isArray(state.filters.type)) return state.filters.type;
+      return state.filters.type ? [state.filters.type] : [];
+    };
+
+    const setSelectedOptionValues = (select, values) => {
+      const selectedValues = new Set(values);
+      Array.from(select.options).forEach((option) => {
+        option.selected = option.value ? selectedValues.has(option.value) : selectedValues.size === 0;
+      });
+    };
+
     const getFilteredRecords = () => {
       const search = normalizeSearchText(state.filters.search);
-      const selectedType = normalizeText(state.filters.type);
+      const selectedTypes = getFilterTypes().map(normalizeText).filter(Boolean);
       const selectedLocal = normalizeText(state.filters.local);
 
       const filtered = state.records.filter((record) => {
@@ -1280,7 +1295,7 @@
         const matchesDay = !state.selectedDate || isDateInsideRecordPeriod(state.selectedDate, record);
         const matchesSearch = !search || text.includes(search);
         const matchesPeriod = recordOverlapsPeriod(record, state.filters.start, state.filters.end);
-        const matchesType = !selectedType || normalizeText(record.tipo) === selectedType;
+        const matchesType = !selectedTypes.length || selectedTypes.includes(normalizeText(record.tipo));
         const matchesLocal = !selectedLocal || normalizeText(record.local) === selectedLocal;
         return matchesDay && matchesSearch && matchesPeriod && matchesType && matchesLocal;
       });
@@ -1310,7 +1325,7 @@
     };
 
     const renderSelectOptions = () => {
-      const currentType = state.filters.type;
+      const currentTypes = getFilterTypes();
       const currentLocal = state.filters.local;
 
       els.filterType.innerHTML = `<option value="">Todos os tipos</option>${getUniqueValues("tipo")
@@ -1321,7 +1336,7 @@
         .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
         .join("")}`;
 
-      els.filterType.value = currentType;
+      setSelectedOptionValues(els.filterType, currentTypes);
       els.filterLocal.value = currentLocal;
     };
 
@@ -1776,7 +1791,7 @@
       state.filters.search = els.filterSearch.value;
       state.filters.start = els.filterStart.value;
       state.filters.end = els.filterEnd.value;
-      state.filters.type = els.filterType.value;
+      state.filters.type = getSelectedOptionValues(els.filterType);
       state.filters.local = els.filterLocal.value;
       state.filters.order = els.filterOrder.value;
       render();
@@ -1787,14 +1802,14 @@
       els.filterStart.value = state.filters.start;
       els.filterEnd.value = state.filters.end;
       els.filterOrder.value = state.filters.order;
-      els.filterType.value = state.filters.type;
+      setSelectedOptionValues(els.filterType, getFilterTypes());
       els.filterLocal.value = state.filters.local;
     };
 
     const showAllRelatedRecords = (field, value) => {
       state.selectedDate = "";
-      state.filters = { search: "", start: "", end: "", type: "", local: "", order: "date-desc" };
-      if (field === "tipo") state.filters.type = value;
+      state.filters = { search: "", start: "", end: "", type: [], local: "", order: "date-desc" };
+      if (field === "tipo") state.filters.type = value ? [value] : [];
       if (field === "local") state.filters.local = value;
       syncFilterInputs();
       resetForm(false);
@@ -1808,7 +1823,7 @@
     };
 
     const clearFilters = () => {
-      state.filters = { search: "", start: "", end: "", type: "", local: "", order: "date-desc" };
+      state.filters = { search: "", start: "", end: "", type: [], local: "", order: "date-desc" };
       state.selectedDate = "";
       syncFilterInputs();
       els.exportStart.value = "";
@@ -2274,6 +2289,7 @@
 
       [els.filterSearch, els.filterStart, els.filterEnd, els.filterType, els.filterLocal, els.filterOrder]
         .forEach((input) => input.addEventListener("input", updateFiltersFromInputs));
+      els.filterType.addEventListener("change", updateFiltersFromInputs);
 
       els.tableBody.addEventListener("click", (event) => {
         const button = event.target.closest("button[data-action]");
