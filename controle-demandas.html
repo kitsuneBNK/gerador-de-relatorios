@@ -758,7 +758,7 @@
             <table class="calendar-table">
               <thead>
                 <tr>
-                  <th>Periodo</th>
+                  <th>Data(s)</th>
                   <th>Local</th>
                   <th>Assunto</th>
                   <th>Tipo</th>
@@ -897,19 +897,64 @@
     const normalizeSearchText = (value) =>
       normalizeText(value).replace(/[\s-]+/g, "");
 
-    const getRecordPeriodEnd = (record) => record.dataFim || record.data;
+    const uniqueSortedDates = (dates) =>
+      Array.from(new Set((dates || []).filter(Boolean))).sort();
+
+    const getRegisteredDates = (record) => {
+      if (Array.isArray(record.datas) && record.datas.length) {
+        return uniqueSortedDates(record.datas);
+      }
+      return uniqueSortedDates([record.data, record.dataFim || record.dataFinal]);
+    };
+
+    const getRecordPeriodEnd = (record) => {
+      const dates = getRegisteredDates(record);
+      return dates[dates.length - 1] || record.data;
+    };
+
+    const addDaysToIso = (isoDate, amount) => {
+      const date = inputValueToDate(isoDate);
+      date.setDate(date.getDate() + amount);
+      return dateToInputValue(date);
+    };
+
+    const splitDatesIntoConsecutiveGroups = (dates) => {
+      const groups = [];
+
+      uniqueSortedDates(dates).forEach((date) => {
+        const currentGroup = groups[groups.length - 1];
+        const previousDate = currentGroup && currentGroup[currentGroup.length - 1];
+
+        if (!previousDate || addDaysToIso(previousDate, 1) !== date) {
+          groups.push([date]);
+          return;
+        }
+
+        currentGroup.push(date);
+      });
+
+      return groups;
+    };
+
+    const getRecordSubject = (record) =>
+      String(record.assunto || "").trim() ? record.assunto : record.tipo;
+
+    const getRecordGroupKey = (record) =>
+      [record.local, getRecordSubject(record)].map(normalizeSearchText).join("|");
 
     const getRecordKey = (record) => {
-      const subjectOrType = String(record.assunto || "").trim() ? record.assunto : record.tipo;
-      const month = String(record.data || "").slice(0, 7);
-      return [month, record.local, subjectOrType].map(normalizeSearchText).join("|");
+      return [record.data, record.local, getRecordSubject(record)].map(normalizeSearchText).join("|");
     };
 
     const getOpenDemandKey = (demand) =>
       [demand.dataChegada, demand.local, demand.tema].map(normalizeSearchText).join("|");
 
     const hasDuplicateRecord = (candidate, ignoredId = "") =>
-      state.records.some((record) => record.id !== ignoredId && getRecordKey(record) === getRecordKey(candidate));
+      state.records.some((record) =>
+        record.id !== ignoredId &&
+        getRecordGroupKey(record) === getRecordGroupKey(candidate) &&
+        getRegisteredDates(record).includes(candidate.data)
+      );
 
     const hasDuplicateOpenDemand = (candidate, ignoredId = "") =>
       state.openDemands.some((demand) => demand.id !== ignoredId && getOpenDemandKey(demand) === getOpenDemandKey(candidate));
@@ -941,20 +986,51 @@
 
     const normalizeRecord = (record) => {
       const start = record.data || record.dataInicio || todayInputValue();
-      const end = record.dataFim || record.dataFinal || start;
-      const data = start <= end ? start : end;
-      const dataFim = start <= end ? end : start;
+      const dates = uniqueSortedDates(
+        Array.isArray(record.datas) && record.datas.length
+          ? record.datas
+          : [start, record.dataFim || record.dataFinal || start]
+      );
+      const data = dates[0] || start;
+      const dataFim = dates[dates.length - 1] || data;
 
       return {
         id: record.id || makeId(),
         data,
         dataFim,
+        datas: dates.length ? dates : [data],
         local: String(record.local || "").trim(),
         assunto: String(record.assunto || "").trim(),
         tipo: String(record.tipo || "").trim(),
         createdAt: record.createdAt || new Date().toISOString(),
         updatedAt: record.updatedAt || record.createdAt || new Date().toISOString(),
       };
+    };
+
+    const normalizeStoredRecords = (records) => {
+      const normalized = [];
+
+      records.forEach((record) => {
+        const start = record.data || record.dataInicio || todayInputValue();
+        const end = record.dataFim || record.dataFinal || start;
+        // Registros antigos sem a lista "datas" viram apenas inicio/fim, sem preencher o meio.
+        const dates = uniqueSortedDates(
+          Array.isArray(record.datas) && record.datas.length ? record.datas : [start, end]
+        );
+        const baseId = record.id || makeId();
+
+        dates.forEach((date) => {
+          normalized.push(normalizeRecord({
+            ...record,
+            id: dates.length > 1 ? `${baseId}-${date}` : baseId,
+            data: date,
+            dataFim: date,
+            datas: [date],
+          }));
+        });
+      });
+
+      return consolidateRecords(normalized);
     };
 
     const OPEN_STATUS_LABELS = ["Em progresso", "Em espera", "Concluido sem relatorio"];
@@ -979,7 +1055,7 @@
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? consolidateRecords(parsed.map(normalizeRecord)) : [];
+        return Array.isArray(parsed) ? normalizeStoredRecords(parsed) : [];
       } catch {
         return [];
       }
@@ -1016,75 +1092,95 @@
     const isFutureDate = (isoDate) => isoDate > todayInputValue();
 
     const isDateInsideRecordPeriod = (isoDate, record) =>
-      Boolean(isoDate) && isoDate >= record.data && isoDate <= getRecordPeriodEnd(record);
+      Boolean(isoDate) && getRegisteredDates(record).includes(isoDate);
 
     const recordOverlapsPeriod = (record, start, end) => {
-      const recordEnd = getRecordPeriodEnd(record);
-      const matchesStart = !start || recordEnd >= start;
-      const matchesEnd = !end || record.data <= end;
-      return matchesStart && matchesEnd;
+      return getRegisteredDates(record).some((date) => {
+        const matchesStart = !start || date >= start;
+        const matchesEnd = !end || date <= end;
+        return matchesStart && matchesEnd;
+      });
     };
 
+    const recordPeriodsOverlap = (record, candidate) => {
+      const candidateDates = new Set(getRegisteredDates(candidate));
+      return getRegisteredDates(record).some((date) => candidateDates.has(date));
+    };
+
+    const recordPeriodsAreConsecutive = (record, candidate) =>
+      addDaysToIso(getRecordPeriodEnd(record), 1) === candidate.data ||
+      addDaysToIso(getRecordPeriodEnd(candidate), 1) === record.data;
+
+    const canMergeRecords = (record, candidate) =>
+      getRecordGroupKey(record) === getRecordGroupKey(candidate) &&
+      (recordPeriodsOverlap(record, candidate) || recordPeriodsAreConsecutive(record, candidate));
+
     const findMatchingRecord = (candidate, ignoredId = "") =>
-      state.records.find((record) => record.id !== ignoredId && getRecordKey(record) === getRecordKey(candidate));
+      state.records.find((record) => record.id !== ignoredId && canMergeRecords(record, candidate));
 
     const mergeRecordPeriod = (record, candidate) => {
-      const nextStart = record.data < candidate.data ? record.data : candidate.data;
-      const currentEnd = getRecordPeriodEnd(record);
-      const candidateEnd = getRecordPeriodEnd(candidate);
-      const nextEnd = currentEnd > candidateEnd ? currentEnd : candidateEnd;
+      const dates = uniqueSortedDates([...getRegisteredDates(record), ...getRegisteredDates(candidate)]);
 
       return {
         ...record,
-        data: nextStart,
-        dataFim: nextEnd,
+        data: dates[0],
+        dataFim: dates[dates.length - 1],
+        datas: dates,
         updatedAt: new Date().toISOString(),
       };
     };
 
+    const buildRecordsFromDateGroups = (record, dates) =>
+      splitDatesIntoConsecutiveGroups(dates).map((group, index) =>
+        normalizeRecord({
+          ...record,
+          id: index === 0 ? record.id : makeId(),
+          data: group[0],
+          dataFim: group[group.length - 1],
+          datas: group,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
     const mergeRecordIntoState = (candidate, ignoredId = "") => {
       const matching = findMatchingRecord(candidate, ignoredId);
-      if (!matching) return { merged: false, alreadyCovered: false };
+      if (!matching) return { merged: false };
 
-      const alreadyCovered =
-        candidate.data >= matching.data &&
-        getRecordPeriodEnd(candidate) <= getRecordPeriodEnd(matching);
       const merged = mergeRecordPeriod(matching, candidate);
-
       state.records = state.records.map((record) => record.id === matching.id ? merged : record);
-      return { merged: true, alreadyCovered };
+      state.records = consolidateRecords(state.records);
+      return { merged: true };
     };
 
     const consolidateRecords = (records) => {
       const mergedRecords = [];
 
       records.forEach((record) => {
-        const matchingIndex = mergedRecords.findIndex((item) => getRecordKey(item) === getRecordKey(record));
-        if (matchingIndex < 0) {
-          mergedRecords.push(record);
-          return;
+        let nextRecord = record;
+        let matchingIndex = mergedRecords.findIndex((item) => canMergeRecords(item, nextRecord));
+
+        while (matchingIndex >= 0) {
+          const current = mergedRecords[matchingIndex];
+          nextRecord = {
+            ...mergeRecordPeriod(current, nextRecord),
+            assunto: current.assunto || nextRecord.assunto,
+            tipo: current.tipo || nextRecord.tipo,
+            createdAt: current.createdAt < nextRecord.createdAt ? current.createdAt : nextRecord.createdAt,
+          };
+          mergedRecords.splice(matchingIndex, 1);
+          matchingIndex = mergedRecords.findIndex((item) => canMergeRecords(item, nextRecord));
         }
 
-        const current = mergedRecords[matchingIndex];
-        mergedRecords[matchingIndex] = {
-          ...mergeRecordPeriod(current, record),
-          assunto: current.assunto || record.assunto,
-          tipo: current.tipo || record.tipo,
-          createdAt: current.createdAt < record.createdAt ? current.createdAt : record.createdAt,
-        };
+        if (!mergedRecords.some((item) => getRecordKey(item) === getRecordKey(nextRecord))) {
+          mergedRecords.push(nextRecord);
+        }
       });
 
       return mergedRecords;
     };
 
-    const forEachDateInRecordPeriod = (record, callback) => {
-      const current = inputValueToDate(record.data);
-      const end = inputValueToDate(getRecordPeriodEnd(record));
-
-      while (current <= end) {
-        callback(dateToInputValue(current));
-        current.setDate(current.getDate() + 1);
-      }
+    const forEachRegisteredDate = (record, callback) => {
+      getRegisteredDates(record).forEach(callback);
     };
 
     const getMonthBounds = () => {
@@ -1104,7 +1200,7 @@
     const getRecordsByDate = () => {
       const map = new Map();
       state.records.forEach((record) => {
-        forEachDateInRecordPeriod(record, (date) => {
+        forEachRegisteredDate(record, (date) => {
           map.set(date, (map.get(date) || 0) + 1);
         });
       });
@@ -1313,24 +1409,34 @@
         return;
       }
 
-      els.tableBody.innerHTML = items.map((record) => `
-        <tr data-id="${escapeHtml(record.id)}">
-          <td class="whitespace-nowrap font-black text-[#004587]">${formatRecordPeriodBR(record)}</td>
-          <td>${escapeHtml(record.local)}</td>
-          <td class="font-bold">${escapeHtml(record.assunto) || "-"}</td>
-          <td>${escapeHtml(record.tipo)}</td>
-          <td class="no-print-area">
-            <div class="row-actions">
-              <button class="icon-btn" type="button" data-action="edit" data-id="${escapeHtml(record.id)}" title="Editar">
-                <i data-lucide="pencil" width="15" height="15"></i>
-              </button>
-              <button class="icon-btn" type="button" data-action="delete" data-id="${escapeHtml(record.id)}" title="Excluir">
-                <i data-lucide="trash-2" width="15" height="15"></i>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `).join("");
+      els.tableBody.innerHTML = items.map((record) => {
+        const selectedRecordDate =
+          state.selectedDate && isDateInsideRecordPeriod(state.selectedDate, record) ? state.selectedDate : "";
+        const registeredDates = getRegisteredDates(record);
+        const displayDate = selectedRecordDate ? formatDateBR(selectedRecordDate) : formatRecordPeriodBR(record);
+        const deleteTitle = selectedRecordDate || registeredDates.length === 1
+          ? "Excluir esta data"
+          : "Selecione um dia no calendario para excluir apenas aquela data";
+
+        return `
+          <tr data-id="${escapeHtml(record.id)}">
+            <td class="whitespace-nowrap font-black text-[#004587]">${displayDate}</td>
+            <td>${escapeHtml(record.local)}</td>
+            <td class="font-bold">${escapeHtml(record.assunto) || "-"}</td>
+            <td>${escapeHtml(record.tipo)}</td>
+            <td class="no-print-area">
+              <div class="row-actions">
+                <button class="icon-btn" type="button" data-action="edit" data-id="${escapeHtml(record.id)}" title="Editar">
+                  <i data-lucide="pencil" width="15" height="15"></i>
+                </button>
+                <button class="icon-btn" type="button" data-action="delete" data-id="${escapeHtml(record.id)}" data-delete-date="${escapeHtml(selectedRecordDate)}" title="${deleteTitle}">
+                  <i data-lucide="trash-2" width="15" height="15"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
     };
 
     const render = () => {
@@ -1434,17 +1540,18 @@
         return;
       }
 
-      if (state.editingId) {
-        if (hasDuplicateRecord(payload, state.editingId || "")) {
-          alert("Ja existe uma demanda realizada com o mesmo local e assunto. Edite o registro existente ou cadastre outro assunto.");
-          return;
-        }
+      if (hasDuplicateRecord(payload, state.editingId || "")) {
+        alert("Ja existe uma demanda realizada nesta mesma data, local e assunto. Edite o registro existente ou cadastre outro assunto.");
+        return;
+      }
 
+      if (state.editingId) {
         state.records = state.records.map((record) =>
           record.id === state.editingId
-            ? normalizeRecord({ ...record, ...payload, updatedAt: new Date().toISOString() })
+            ? normalizeRecord({ ...record, ...payload, dataFim: payload.data, datas: [payload.data], updatedAt: new Date().toISOString() })
             : record
         );
+        state.records = consolidateRecords(state.records);
       } else {
         const candidate = normalizeRecord({
           ...payload,
@@ -1454,11 +1561,7 @@
         });
         const mergeResult = mergeRecordIntoState(candidate);
 
-        if (mergeResult.merged) {
-          if (mergeResult.alreadyCovered) {
-            alert("Essa demanda ja esta registrada dentro do periodo existente.");
-          }
-        } else {
+        if (!mergeResult.merged) {
           state.records.push(candidate);
         }
       }
@@ -1508,14 +1611,32 @@
       render();
     };
 
-    const deleteRecord = (id) => {
+    const deleteRecord = (id, requestedDate = "") => {
       const record = state.records.find((item) => item.id === id);
       if (!record) return;
+
+      const registeredDates = getRegisteredDates(record);
+      const selectedRecordDate =
+        requestedDate ||
+        (state.selectedDate && registeredDates.includes(state.selectedDate) ? state.selectedDate : "");
+
+      if (!selectedRecordDate && registeredDates.length > 1) {
+        alert("Selecione um dia no calendario antes de excluir uma demanda agrupada. Assim apenas aquele dia sera removido.");
+        return;
+      }
+
+      const dateToRemove = selectedRecordDate || registeredDates[0] || record.data;
       const title = record.assunto || "sem assunto";
-      const confirmed = confirm(`Excluir o registro "${title}" de ${formatRecordPeriodBR(record)}?`);
+      const remainingDates = registeredDates.filter((date) => date !== dateToRemove);
+      const deleteScope = registeredDates.length > 1
+        ? `apenas do dia ${formatDateBR(dateToRemove)}`
+        : `de ${formatDateBR(dateToRemove)}`;
+      const confirmed = confirm(`Excluir o registro "${title}" ${deleteScope}?`);
       if (!confirmed) return;
 
-      state.records = state.records.filter((item) => item.id !== id);
+      const replacementRecords = buildRecordsFromDateGroups(record, remainingDates);
+      state.records = state.records.flatMap((item) => item.id === id ? replacementRecords : [item]);
+      state.records = consolidateRecords(state.records);
       if (state.editingId === id) resetForm();
       saveRecords();
       render();
@@ -1555,9 +1676,11 @@
         updatedAt: new Date().toISOString(),
       });
 
-      const mergeResult = mergeRecordIntoState(completedRecord);
-      if (!mergeResult.merged) {
-        state.records.push(completedRecord);
+      if (!hasDuplicateRecord(completedRecord)) {
+        const mergeResult = mergeRecordIntoState(completedRecord);
+        if (!mergeResult.merged) {
+          state.records.push(completedRecord);
+        }
       }
 
       state.openDemands = state.openDemands.filter((item) => item.id !== id);
@@ -1736,7 +1859,6 @@
       const getIndex = (names) => names.map((name) => header.indexOf(name)).find((index) => index >= 0) ?? -1;
       const indexes = {
         data: getIndex(["data", "dia", "datainicio", "datainicial", "inicio"]),
-        dataFim: getIndex(["datafim", "datafinal", "fim"]),
         local: getIndex(["local", "endereco"]),
         assunto: getIndex(["assunto", "descricao", "observacao"]),
         tipo: getIndex(["tipo", "tipodedemanda", "categoria"]),
@@ -1747,7 +1869,6 @@
         return;
       }
 
-      const existingKeys = new Set(state.records.map(getRecordKey));
       let imported = 0;
       let merged = 0;
       let duplicated = 0;
@@ -1755,11 +1876,10 @@
 
       rows.slice(1).forEach((row) => {
         const data = parseImportedDate(row[indexes.data]);
-        const dataFim = indexes.dataFim >= 0 ? parseImportedDate(row[indexes.dataFim]) : data;
         const local = String(row[indexes.local] || "").trim();
         const tipo = String(row[indexes.tipo] || "").trim();
 
-        if (!data || !dataFim || !local || !tipo || isFutureDate(data) || isFutureDate(dataFim)) {
+        if (!data || !local || !tipo || isFutureDate(data)) {
           invalid += 1;
           return;
         }
@@ -1767,7 +1887,6 @@
         const record = normalizeRecord({
           id: makeId(),
           data,
-          dataFim,
           local,
           assunto: indexes.assunto >= 0 ? row[indexes.assunto] || "" : "",
           tipo,
@@ -1775,27 +1894,30 @@
           updatedAt: new Date().toISOString(),
         });
 
-        const key = getRecordKey(record);
-        if (existingKeys.has(key)) {
-          const result = mergeRecordIntoState(record);
-          if (result.alreadyCovered) duplicated += 1;
-          else merged += 1;
+        if (hasDuplicateRecord(record)) {
+          duplicated += 1;
           return;
         }
 
-        existingKeys.add(key);
-        state.records.push(record);
         imported += 1;
+        const mergeResult = mergeRecordIntoState(record);
+
+        if (mergeResult.merged) {
+          merged += 1;
+          return;
+        }
+
+        state.records.push(record);
       });
 
-      if (imported > 0) {
+      if (imported > 0 || merged > 0) {
         state.selectedDate = "";
         saveRecords();
         resetForm(false);
         render();
       }
 
-      alert(`Importacao concluida.\nRegistros importados: ${imported}\nPeriodos atualizados: ${merged}\nDuplicados ignorados: ${duplicated}\nLinhas invalidas ignoradas: ${invalid}`);
+      alert(`Importacao concluida.\nRegistros importados: ${imported}\nRegistros agrupados por dias consecutivos: ${merged}\nDuplicados ignorados: ${duplicated}\nLinhas invalidas ignoradas: ${invalid}`);
     };
 
     const importCsvFile = (event) => {
@@ -1845,16 +1967,21 @@
         return;
       }
 
-      const header = ["data_inicio", "data_fim", "local", "assunto", "tipo"];
-      const csvRows = rows.map((record) =>
-        [
-          record.data,
-          getRecordPeriodEnd(record),
-          record.local,
-          record.assunto,
-          record.tipo,
-        ].map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(";")
-      );
+      const header = ["data", "local", "assunto", "tipo"];
+      const csvRows = rows.flatMap((record) => {
+        const outputRows = [];
+        forEachRegisteredDate(record, (date) => {
+          outputRows.push(
+            [
+              date,
+              record.local,
+              record.assunto,
+              record.tipo,
+            ].map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(";")
+          );
+        });
+        return outputRows;
+      });
       downloadTextFile(
         getExportFilename(),
         `\ufeff${header.join(";")}\n${csvRows.join("\n")}`,
@@ -1909,7 +2036,7 @@
         const id = button.getAttribute("data-id");
         const action = button.getAttribute("data-action");
         if (action === "edit") fillFormForEdit(id);
-        if (action === "delete") deleteRecord(id);
+        if (action === "delete") deleteRecord(id, button.getAttribute("data-delete-date") || "");
       });
 
       els.openTableBody.addEventListener("click", (event) => {
