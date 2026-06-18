@@ -157,11 +157,57 @@
       return match ? match[0].replace(/\s/g, "") : raw;
     };
 
-    const buildMapEmbedUrl = (coordinates) => {
-      const cleanCoordinates = getCleanCoordinates(coordinates);
-      return cleanCoordinates
-        ? `https://maps.google.com/maps?q=${encodeURIComponent(cleanCoordinates)}&t=m&z=17&output=embed&iwloc=near`
-        : "";
+    const parseCoordinates = (value) => {
+      const cleanCoordinates = getCleanCoordinates(value);
+      const match = cleanCoordinates.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+      if (!match) return null;
+      const lat = Number(match[1]);
+      const lng = Number(match[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < -85 || lat > 85 || lng < -180 || lng > 180) return null;
+      return { lat, lng, label: cleanCoordinates };
+    };
+
+    const getTilePoint = (lat, lng, zoom) => {
+      const latRad = (lat * Math.PI) / 180;
+      const scale = 2 ** zoom;
+      return {
+        x: ((lng + 180) / 360) * scale,
+        y: ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale,
+      };
+    };
+
+    const buildStaticMapData = (coordinates, zoom = 17, gridSize = 3) => {
+      const parsed = parseCoordinates(coordinates);
+      if (!parsed) return null;
+
+      const center = getTilePoint(parsed.lat, parsed.lng, zoom);
+      const centerTileX = Math.floor(center.x);
+      const centerTileY = Math.floor(center.y);
+      const half = Math.floor(gridSize / 2);
+      const maxTile = 2 ** zoom;
+      const firstTileX = centerTileX - half;
+      const firstTileY = centerTileY - half;
+      const tiles = [];
+
+      for (let row = 0; row < gridSize; row += 1) {
+        for (let col = 0; col < gridSize; col += 1) {
+          const tileX = ((firstTileX + col) % maxTile + maxTile) % maxTile;
+          const tileY = Math.max(0, Math.min(maxTile - 1, firstTileY + row));
+          tiles.push({
+            key: `${zoom}-${tileX}-${tileY}`,
+            src: `https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`,
+          });
+        }
+      }
+
+      return {
+        label: parsed.label,
+        gridSize,
+        tiles,
+        markerX: ((center.x - firstTileX) / gridSize) * 100,
+        markerY: ((center.y - firstTileY) / gridSize) * 100,
+      };
     };
 
     const getDemandDisplayTitle = (item, index) =>
@@ -308,6 +354,47 @@
         <div className={wide ? "report-cover-item--wide" : ""}>
           <span className="report-cover-label">{label}</span>
           <span className="report-cover-value">{text}</span>
+        </div>
+      );
+    };
+
+    const StaticMapPreview = ({ mapData, title }) => {
+      if (!mapData) return null;
+      return (
+        <div className="w-full border rounded-xl overflow-hidden bg-slate-100 shadow-inner relative" style={{ aspectRatio: "16 / 9" }}>
+          <div
+            className="absolute inset-0 grid"
+            style={{ gridTemplateColumns: `repeat(${mapData.gridSize}, minmax(0, 1fr))` }}
+          >
+            {mapData.tiles.map((tile) => (
+              <img
+                key={tile.key}
+                src={tile.src}
+                alt=""
+                crossOrigin="anonymous"
+                loading="eager"
+                decoding="async"
+                className="w-full h-full object-cover"
+              />
+            ))}
+          </div>
+          <div
+            className="absolute z-10"
+            style={{
+              left: `${mapData.markerX}%`,
+              top: `${mapData.markerY}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+            title={title}
+          >
+            <div className="h-5 w-5 rounded-full border-[3px] border-white bg-red-600 shadow-[0_0_0_2px_rgba(185,28,28,0.7),0_6px_12px_rgba(15,23,42,0.25)]"></div>
+          </div>
+          <div className="absolute left-2 bottom-2 rounded-md bg-white/90 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-slate-600">
+            OpenStreetMap
+          </div>
+          <div className="absolute right-2 bottom-2 rounded-md bg-white/90 px-2 py-1 text-[8px] font-bold text-slate-600">
+            {mapData.label}
+          </div>
         </div>
       );
     };
@@ -1141,7 +1228,7 @@
                       <div className="space-y-5">
                         {visibleDemandItems.map((item, index) => {
                           const gridClass = item.fotos.length <= 1 ? "grid-cols-1" : "grid-cols-2";
-                          const demandMapUrl = buildMapEmbedUrl(item.coordenadas);
+                          const demandMapData = buildStaticMapData(item.coordenadas);
                           const hasDemandLocation = item.local.trim() || item.coordenadas.trim();
                           const demandTitle = getDemandDisplayTitle(item, index);
 
@@ -1176,21 +1263,13 @@
                                 </div>
                               )}
 
-                              {demandMapUrl && (
+                              {demandMapData && (
                                 <div className="mb-3 avoid-break">
                                   <div className="flex items-center gap-2 mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
                                     <MapPin size={12} />
                                     Mapa de referencia
                                   </div>
-                                  <div className="w-full border rounded-xl overflow-hidden bg-slate-50 shadow-inner" style={{ aspectRatio: "16 / 9" }}>
-                                    <iframe
-                                      width="100%"
-                                      height="100%"
-                                      frameBorder="0"
-                                      src={demandMapUrl}
-                                      title={`Mapa da demanda ${index + 1}`}
-                                    ></iframe>
-                                  </div>
+                                  <StaticMapPreview mapData={demandMapData} title={`Mapa da demanda ${index + 1}`} />
                                 </div>
                               )}
 
