@@ -1779,9 +1779,12 @@
 
     const detectCsvDelimiter = (text) => {
       const firstLine = String(text || "").split(/\r?\n/).find((line) => line.trim()) || "";
-      const semicolons = (firstLine.match(/;/g) || []).length;
-      const commas = (firstLine.match(/,/g) || []).length;
-      return semicolons >= commas ? ";" : ",";
+      const counts = [
+        { delimiter: ";", total: (firstLine.match(/;/g) || []).length },
+        { delimiter: "\t", total: (firstLine.match(/\t/g) || []).length },
+        { delimiter: ",", total: (firstLine.match(/,/g) || []).length },
+      ];
+      return counts.sort((a, b) => b.total - a.total)[0].delimiter;
     };
 
     const parseCsvRows = (text, delimiter) => {
@@ -1847,6 +1850,41 @@
       return isValidIsoDate(isoDate) ? isoDate : "";
     };
 
+    const getDateRange = (start, end) => {
+      const dates = [];
+      if (!start || !end) return dates;
+
+      const rangeStart = start <= end ? start : end;
+      const rangeEnd = start <= end ? end : start;
+      const current = inputValueToDate(rangeStart);
+      const last = inputValueToDate(rangeEnd);
+      if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) return dates;
+
+      while (current <= last) {
+        dates.push(dateToInputValue(current));
+        current.setDate(current.getDate() + 1);
+      }
+
+      return dates;
+    };
+
+    const parseImportedDates = (value) => {
+      const text = String(value || "").trim();
+      if (!text) return [];
+
+      const datePattern = /\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{4}/g;
+      const matches = text.match(datePattern) || [];
+      const parsed = matches.map(parseImportedDate).filter(Boolean);
+      const normalizedText = normalizeText(text).replace(/[\u2013\u2014]/g, "-");
+      const hasRangeConnector = /\s(a|ate|-)\s/i.test(normalizedText);
+
+      if (parsed.length >= 2 && hasRangeConnector) {
+        return getDateRange(parsed[0], parsed[parsed.length - 1]);
+      }
+
+      return uniqueSortedDates(parsed);
+    };
+
     const importCsvText = (text) => {
       const delimiter = detectCsvDelimiter(text);
       const rows = parseCsvRows(text, delimiter);
@@ -1858,10 +1896,11 @@
       const header = rows[0].map(normalizeHeaderName);
       const getIndex = (names) => names.map((name) => header.indexOf(name)).find((index) => index >= 0) ?? -1;
       const indexes = {
-        data: getIndex(["data", "dia", "datainicio", "datainicial", "inicio"]),
-        local: getIndex(["local", "endereco"]),
-        assunto: getIndex(["assunto", "descricao", "observacao"]),
-        tipo: getIndex(["tipo", "tipodedemanda", "categoria"]),
+        data: getIndex(["data", "datas", "dia", "dias", "periodo", "periodos", "datainicio", "datainicial", "inicio"]),
+        dataFim: getIndex(["datafim", "datafinal", "fim", "ate"]),
+        local: getIndex(["local", "localizacao", "endereco"]),
+        assunto: getIndex(["assunto", "tema", "descricao", "observacao"]),
+        tipo: getIndex(["tipo", "tipodedemanda", "categoria", "servico"]),
       };
 
       if (indexes.data < 0 || indexes.local < 0 || indexes.tipo < 0) {
@@ -1875,39 +1914,46 @@
       let invalid = 0;
 
       rows.slice(1).forEach((row) => {
-        const data = parseImportedDate(row[indexes.data]);
+        const importedDates = parseImportedDates(row[indexes.data]);
+        const endDate = indexes.dataFim >= 0 ? parseImportedDate(row[indexes.dataFim]) : "";
+        const rowDates = endDate && importedDates.length
+          ? getDateRange(importedDates[0], endDate)
+          : importedDates;
+        const validDates = uniqueSortedDates(rowDates).filter((date) => !isFutureDate(date));
         const local = String(row[indexes.local] || "").trim();
         const tipo = String(row[indexes.tipo] || "").trim();
 
-        if (!data || !local || !tipo || isFutureDate(data)) {
+        if (!validDates.length || !local || !tipo) {
           invalid += 1;
           return;
         }
 
-        const record = normalizeRecord({
-          id: makeId(),
-          data,
-          local,
-          assunto: indexes.assunto >= 0 ? row[indexes.assunto] || "" : "",
-          tipo,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+        validDates.forEach((data) => {
+          const record = normalizeRecord({
+            id: makeId(),
+            data,
+            local,
+            assunto: indexes.assunto >= 0 ? row[indexes.assunto] || "" : "",
+            tipo,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+
+          if (hasDuplicateRecord(record)) {
+            duplicated += 1;
+            return;
+          }
+
+          imported += 1;
+          const mergeResult = mergeRecordIntoState(record);
+
+          if (mergeResult.merged) {
+            merged += 1;
+            return;
+          }
+
+          state.records.push(record);
         });
-
-        if (hasDuplicateRecord(record)) {
-          duplicated += 1;
-          return;
-        }
-
-        imported += 1;
-        const mergeResult = mergeRecordIntoState(record);
-
-        if (mergeResult.merged) {
-          merged += 1;
-          return;
-        }
-
-        state.records.push(record);
       });
 
       if (imported > 0 || merged > 0) {
