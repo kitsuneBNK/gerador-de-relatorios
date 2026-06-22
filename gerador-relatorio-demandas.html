@@ -857,13 +857,72 @@
             windowHeight: target.scrollHeight,
           });
 
+        // Evita que o corte de pagina atravesse fotos, mapas ou cards marcados como indivisiveis.
+        const getAvoidRanges = (target, renderedHeight) => {
+          if (!target) return [];
+
+          const targetRect = target.getBoundingClientRect();
+          if (!targetRect.height) return [];
+
+          const scaleY = renderedHeight / targetRect.height;
+          return Array.from(target.querySelectorAll(".avoid-break, img"))
+            .map((element) => {
+              const rect = element.getBoundingClientRect();
+              const top = Math.max(0, (rect.top - targetRect.top) * scaleY);
+              const bottom = Math.min(renderedHeight, (rect.bottom - targetRect.top) * scaleY);
+              return { top, bottom, height: bottom - top };
+            })
+            .filter((range) => range.height > 1 && range.height < renderedHeight - 1)
+            .sort((a, b) => a.top - b.top);
+        };
+
+        const getSafeSliceHeight = ({ consumedHeight, maxSliceHeight, remainingHeight, avoidRanges, usableHeight }) => {
+          const naturalSliceHeight = Math.min(remainingHeight, maxSliceHeight);
+          if (remainingHeight <= maxSliceHeight) return naturalSliceHeight;
+
+          const cutLine = consumedHeight + naturalSliceHeight;
+          const minUsefulSlice = 8;
+          const blockingRange = avoidRanges.find(
+            (range) => range.top < cutLine && range.bottom > cutLine && range.height <= usableHeight
+          );
+
+          if (!blockingRange) return naturalSliceHeight;
+
+          const sliceBeforeRange = blockingRange.top - consumedHeight;
+          const sliceAfterRange = blockingRange.bottom - consumedHeight;
+
+          if (sliceBeforeRange >= minUsefulSlice) return sliceBeforeRange;
+          if (sliceAfterRange <= maxSliceHeight) return sliceAfterRange;
+
+          return naturalSliceHeight;
+        };
+
+        const addCanvasSlice = (canvas, sourceY, sourceHeight, x, y, width, height) => {
+          const sliceCanvas = document.createElement("canvas");
+          const sliceHeight = Math.max(1, Math.ceil(sourceHeight));
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeight;
+
+          const ctx = sliceCanvas.getContext("2d");
+          if (!ctx) {
+            throw new Error("Canvas indisponivel para fatiar o PDF.");
+          }
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sliceHeight);
+
+          pdf.addImage(sliceCanvas.toDataURL("image/jpeg", 0.98), "JPEG", x, y, width, height);
+        };
+
         const addCanvasAcrossPages = (canvas, options = {}) => {
-          const imgData = canvas.toDataURL("image/jpeg", 0.98);
           const imgWidth = options.imgWidth || pageWidth;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           const marginX = options.marginX || 0;
           const pageTop = options.pageTop || 0;
           const pageBottom = options.pageBottom || 0;
+          const usableHeight = pageHeight - pageTop - pageBottom;
+          const avoidRanges = options.sourceEl ? getAvoidRanges(options.sourceEl, imgHeight) : [];
           let currentY = options.startY || 0;
           let consumedHeight = 0;
           let remainingHeight = imgHeight;
@@ -873,16 +932,26 @@
             pdf.addPage();
           }
 
-          while (remainingHeight > 0) {
+          while (remainingHeight > 0.1) {
             if (consumedHeight > 0) {
               currentY = pageTop;
               pdf.addPage();
             }
-            pdf.addImage(imgData, "JPEG", marginX, currentY - consumedHeight, imgWidth, imgHeight);
             const availableHeight = pageHeight - currentY - pageBottom;
-            lastUsedHeight = Math.min(remainingHeight, availableHeight);
-            consumedHeight += availableHeight;
-            remainingHeight -= availableHeight;
+            lastUsedHeight = getSafeSliceHeight({
+              consumedHeight,
+              maxSliceHeight: availableHeight,
+              remainingHeight,
+              avoidRanges,
+              usableHeight,
+            });
+
+            const sourceY = (consumedHeight / imgHeight) * canvas.height;
+            const sourceHeight = Math.min(canvas.height - sourceY, (lastUsedHeight / imgHeight) * canvas.height);
+            addCanvasSlice(canvas, sourceY, sourceHeight, marginX, currentY, imgWidth, lastUsedHeight);
+
+            consumedHeight += lastUsedHeight;
+            remainingHeight = Math.max(0, imgHeight - consumedHeight);
           }
 
           return currentY + lastUsedHeight;
@@ -905,9 +974,8 @@
             }
           };
 
-          const addBlockCanvas = (canvas) => {
+          const addBlockCanvas = (canvas, block) => {
             ensureBodyPage();
-            const imgData = canvas.toDataURL("image/jpeg", 0.98);
             const imgHeight = (canvas.height * contentWidth) / canvas.width;
 
             if (imgHeight <= usableHeight) {
@@ -915,6 +983,7 @@
                 pdf.addPage();
                 cursorY = margin;
               }
+              const imgData = canvas.toDataURL("image/jpeg", 0.98);
               pdf.addImage(imgData, "JPEG", margin, cursorY, contentWidth, imgHeight);
               cursorY += imgHeight + gap;
               return;
@@ -932,6 +1001,7 @@
                 imgWidth: contentWidth,
                 pageTop: margin,
                 pageBottom: margin,
+                sourceEl: block,
               }) + gap;
           };
 
@@ -947,7 +1017,7 @@
 
           for (const block of blocks) {
             const canvas = await renderCanvas(block);
-            addBlockCanvas(canvas);
+            addBlockCanvas(canvas, block);
           }
         };
 
@@ -1305,9 +1375,9 @@
                                     <ImageIcon size={12} />
                                     Registro fotografico
                                   </div>
-                                  <div className={`grid gap-3 ${gridClass}`}>
+                                  <div className={`grid gap-3 ${gridClass} photo-grid`}>
                                     {item.fotos.map((photo, photoIndex) => (
-                                      <div key={photo.id} className="border rounded-xl bg-white overflow-hidden avoid-break">
+                                      <div key={photo.id} className="photo-card border rounded-xl bg-white overflow-hidden avoid-break">
                                         <div className="px-3 py-1.5 bg-slate-50 border-b text-[8px] font-black text-slate-400 text-center uppercase tracking-wide">
                                           Imagem {String(photoIndex + 1).padStart(2, "0")}
                                         </div>
