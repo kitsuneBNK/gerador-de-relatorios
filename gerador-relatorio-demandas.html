@@ -168,6 +168,10 @@
       return { lat, lng, label: cleanCoordinates };
     };
 
+    // Mapa estatico: usa pixels reais dos tiles para o marcador nao deslocar em quadros 16:9.
+    const MAP_TILE_SIZE = 256;
+    const STATIC_MAP_VIEWPORT = { width: 1024, height: 576 };
+
     const getTilePoint = (lat, lng, zoom) => {
       const latRad = (lat * Math.PI) / 180;
       const scale = 2 ** zoom;
@@ -177,36 +181,46 @@
       };
     };
 
-    const buildStaticMapData = (coordinates, zoom = 17, gridSize = 3) => {
+    const buildStaticMapData = (coordinates, zoom = 17, viewport = STATIC_MAP_VIEWPORT) => {
       const parsed = parseCoordinates(coordinates);
       if (!parsed) return null;
 
       const center = getTilePoint(parsed.lat, parsed.lng, zoom);
-      const centerTileX = Math.floor(center.x);
-      const centerTileY = Math.floor(center.y);
-      const half = Math.floor(gridSize / 2);
       const maxTile = 2 ** zoom;
-      const firstTileX = centerTileX - half;
-      const firstTileY = centerTileY - half;
+      const worldSize = maxTile * MAP_TILE_SIZE;
+      const viewportWidth = viewport.width;
+      const viewportHeight = viewport.height;
+      const centerPixelX = center.x * MAP_TILE_SIZE;
+      const centerPixelY = center.y * MAP_TILE_SIZE;
+      const startX = centerPixelX - viewportWidth / 2;
+      const startY = Math.max(0, Math.min(worldSize - viewportHeight, centerPixelY - viewportHeight / 2));
+      const firstTileX = Math.floor(startX / MAP_TILE_SIZE);
+      const lastTileX = Math.floor((startX + viewportWidth) / MAP_TILE_SIZE);
+      const firstTileY = Math.floor(startY / MAP_TILE_SIZE);
+      const lastTileY = Math.floor((startY + viewportHeight) / MAP_TILE_SIZE);
       const tiles = [];
 
-      for (let row = 0; row < gridSize; row += 1) {
-        for (let col = 0; col < gridSize; col += 1) {
-          const tileX = ((firstTileX + col) % maxTile + maxTile) % maxTile;
-          const tileY = Math.max(0, Math.min(maxTile - 1, firstTileY + row));
+      for (let tileY = firstTileY; tileY <= lastTileY; tileY += 1) {
+        if (tileY < 0 || tileY >= maxTile) continue;
+
+        for (let tileX = firstTileX; tileX <= lastTileX; tileX += 1) {
+          const wrappedTileX = ((tileX % maxTile) + maxTile) % maxTile;
           tiles.push({
             key: `${zoom}-${tileX}-${tileY}`,
-            src: `https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`,
+            src: `https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png`,
+            left: ((tileX * MAP_TILE_SIZE - startX) / viewportWidth) * 100,
+            top: ((tileY * MAP_TILE_SIZE - startY) / viewportHeight) * 100,
+            width: (MAP_TILE_SIZE / viewportWidth) * 100,
+            height: (MAP_TILE_SIZE / viewportHeight) * 100,
           });
         }
       }
 
       return {
         label: parsed.label,
-        gridSize,
         tiles,
-        markerX: ((center.x - firstTileX) / gridSize) * 100,
-        markerY: ((center.y - firstTileY) / gridSize) * 100,
+        markerX: ((centerPixelX - startX) / viewportWidth) * 100,
+        markerY: ((centerPixelY - startY) / viewportHeight) * 100,
       };
     };
 
@@ -362,10 +376,7 @@
       if (!mapData) return null;
       return (
         <div className="w-full border rounded-xl overflow-hidden bg-slate-100 shadow-inner relative" style={{ aspectRatio: "16 / 9" }}>
-          <div
-            className="absolute inset-0 grid"
-            style={{ gridTemplateColumns: `repeat(${mapData.gridSize}, minmax(0, 1fr))` }}
-          >
+          <div className="absolute inset-0 overflow-hidden">
             {mapData.tiles.map((tile) => (
               <img
                 key={tile.key}
@@ -374,7 +385,13 @@
                 crossOrigin="anonymous"
                 loading="eager"
                 decoding="async"
-                className="w-full h-full object-cover"
+                className="absolute block max-w-none"
+                style={{
+                  left: `${tile.left}%`,
+                  top: `${tile.top}%`,
+                  width: `${tile.width}%`,
+                  height: `${tile.height}%`,
+                }}
               />
             ))}
           </div>
